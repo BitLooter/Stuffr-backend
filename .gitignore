@@ -1,3 +1,7 @@
+stuffr.db
+# Frontend code is a separate repo, 'static' can be a symlink to its 'dist'
+static
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
