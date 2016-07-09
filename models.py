@@ -1,22 +1,30 @@
 """Data models for Stuffr."""
 
+import sqlalchemy
 import sqlalchemy.ext.declarative
 from sqlalchemy import Column, Integer, String
 
-Base = sqlalchemy.ext.declarative.declarative_base()
+DeclarativeBase = sqlalchemy.ext.declarative.declarative_base()
+
+
+class Base(DeclarativeBase):
+    """Base class for all models."""
+
+    __abstract__ = True
+
+    id = Column(Integer, primary_key=True)
+
+    def as_dict(self):
+        """Return fields as a dict."""
+        return {c.key: getattr(self, c.key)
+                for c in sqlalchemy.inspect(self).mapper.column_attrs}
 
 
 class Thing(Base):
     """Model for generic thing data."""
 
     __tablename__ = 'things'
-    id = Column(Integer, primary_key=True)
     name = Column(String)
-
-    def as_dict(self):
-        """Return fields as a dict."""
-        # TODO: find out if there's a way to do this built into SQLAlchemy
-        return {'id': self.id, 'name': self.name}
 
     def __repr__(self):
         """Basic Thing data as a string."""

@@ -10,7 +10,7 @@ import models
 # Set up database
 engine = sqlalchemy.create_engine('sqlite:///stuffr.db')
 Session = sqlalchemy.orm.sessionmaker(bind=engine)
-models.Base.metadata.create_all(engine)
+models.DeclarativeBase.metadata.create_all(engine)
 
 # Set up Flask
 app = Flask('stuffr-backend', static_url_path='')
