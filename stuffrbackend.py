@@ -3,32 +3,14 @@
 
 import json
 import sqlalchemy, sqlalchemy.ext.declarative, sqlalchemy.orm
-from sqlalchemy import Column, Integer, String
 from flask import Flask, send_from_directory, request
+
+import models
 
 # Set up database
 engine = sqlalchemy.create_engine('sqlite:///stuffr.db')
 Session = sqlalchemy.orm.sessionmaker(bind=engine)
-Base = sqlalchemy.ext.declarative.declarative_base()
-
-
-class Thing(Base):
-    """Model for generic thing data."""
-
-    __tablename__ = 'things'
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-
-    def as_dict(self):
-        """Return fields as a dict."""
-        # TODO: find out if there's a way to do this built into SQLAlchemy
-        return {'id': self.id, 'name': self.name}
-
-    def __repr__(self):
-        """Basic Thing data as a string."""
-        return "<Thing name='{}'>".format(self.name)
-
-Base.metadata.create_all(engine)
+models.Base.metadata.create_all(engine)
 
 # Set up Flask
 app = Flask('stuffr-backend', static_url_path='')
@@ -46,12 +28,12 @@ def get_things():
     """Provide a list of things from the database."""
     if request.method == 'GET':
         session = Session()
-        things = session.query(Thing).all()
+        things = session.query(models.Thing).all()
         things_list = [t.as_dict() for t in things]
         return json.dumps(things_list)
     elif request.method == 'POST':
         session = Session()
-        thing = Thing(name=request.get_json()['name'])
+        thing = models.Thing(name=request.get_json()['name'])
         session.add(thing)
         session.commit()
         return json.dumps({'id': thing.id, 'name': thing.name})
