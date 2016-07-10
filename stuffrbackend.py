@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Main file for Stuffr's backend."""
 
+from http import HTTPStatus
 import json
 import sqlalchemy, sqlalchemy.ext.declarative, sqlalchemy.orm
 from flask import Flask, send_from_directory, request
@@ -36,7 +37,7 @@ def get_things():
         thing = models.Thing(name=request.get_json()['name'])
         session.add(thing)
         session.commit()
-        return json.dumps({'id': thing.id, 'name': thing.name})
+        return json.dumps({'id': thing.id, 'name': thing.name}), HTTPStatus.CREATED
 
 
 if __name__ == "__main__":
