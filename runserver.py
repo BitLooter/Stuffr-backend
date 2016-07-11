@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Flask debug server for the Stuffr backend."""
 
-from flask import Flask, send_from_directory
+from flask import Flask, render_template
+from flask_debugtoolbar import DebugToolbarExtension
 
 from database import db
 
@@ -10,7 +11,8 @@ def create_app():
     """Create the flask app for the debug server."""
     app = Flask('stuffrdebugserver',
                 instance_relative_config=True,
-                static_url_path='')
+                static_url_path='',
+                template_folder='static')
     app.config.from_object('defaultconfig')
     app.config.from_pyfile('debugconfig.py', silent=True)
 
@@ -26,10 +28,12 @@ if __name__ == "__main__":
     app = create_app()
     with app.app_context():
         db.create_all()
+    toolbar = DebugToolbarExtension(app)
 
     @app.route('/')
     def debug_root():
         """Serve index.html when using the debug server."""
-        return send_from_directory('static', 'index.html')
+        # Using render_template so flask_debugtoolbar can do its thing
+        return render_template('index.html')
 
     app.run(app.config['SERVER_DEBUG_HOST'], app.config['SERVER_DEBUG_PORT'])
