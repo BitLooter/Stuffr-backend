@@ -8,4 +8,8 @@ package directory, copy this file there and name it 'debugconfig.py' or
 
 # Will be used as the 'host'/'port' parameters for app.run
 SERVER_DEBUG_HOST = "localhost"
-SERVER_DEBUG_PORT = 8080
+SERVER_DEBUG_PORT = 5000
+
+# Default database information
+SQLALCHEMY_DATABASE_URI = 'sqlite://'   # No path makes a memory database
+SQLALCHEMY_TRACK_MODIFICATIONS = False

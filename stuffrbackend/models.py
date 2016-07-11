@@ -1,18 +1,16 @@
 """Data models for Stuffr."""
 
 import sqlalchemy
-import sqlalchemy.ext.declarative
-from sqlalchemy import Column, Integer, String
 
-DeclarativeBase = sqlalchemy.ext.declarative.declarative_base()
+from database import db
 
 
-class Base(DeclarativeBase):
+class Base(db.Model):
     """Base class for all models."""
 
     __abstract__ = True
 
-    id = Column(Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
 
     def as_dict(self):
         """Return fields as a dict."""
@@ -24,7 +22,7 @@ class Thing(Base):
     """Model for generic thing data."""
 
     __tablename__ = 'things'
-    name = Column(String)
+    name = db.Column(db.String)
 
     def __repr__(self):
         """Basic Thing data as a string."""
