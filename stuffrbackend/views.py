@@ -4,11 +4,11 @@ from http import HTTPStatus
 import json
 from flask import request
 
-from stuffrbackend import app, Session
+from stuffrbackend import bp, Session
 import stuffrbackend.models as models
 
 
-@app.route('/api/things')
+@bp.route('/things')
 def get_things():
     """Provide a list of things from the database."""
     session = Session()
@@ -17,7 +17,7 @@ def get_things():
     return json.dumps(things_list)
 
 
-@app.route('/api/things', methods=['POST'])
+@bp.route('/things', methods=['POST'])
 def post_thing():
     """POST a thing to the database."""
     session = Session()
