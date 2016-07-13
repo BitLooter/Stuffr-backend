@@ -28,4 +28,5 @@ def post_thing():
     thing = models.Thing(name=request.get_json()['name'])
     db.session.add(thing)
     db.session.commit()
+    # TODO: Error handling
     return json_response(json.dumps(thing.as_dict()), HTTPStatus.CREATED)
