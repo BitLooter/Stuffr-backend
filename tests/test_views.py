@@ -33,6 +33,10 @@ class CommonAssertions:
         if content_type != 'application/json':
             raise AssertionError("Wrong Content-Type for JSON: " + content_type)
 
+    def assertDictEqualWithoutId(self, dict_a, dict_b):
+        """Check that both dicts are identical after removing IDs."""
+        del dict_a
+
 
 class TestStuffrViews(TestCase, CommonAssertions):
     """Test Stuffr views module."""
@@ -82,19 +86,34 @@ class TestStuffrViews(TestCase, CommonAssertions):
         self.assertStatusOk(response)
         self.assertJsonHeader(response)
 
-        data = response.json
-        self.assertIsInstance(data, list)
-        self.assertEqual(len(data), len(self.thing_data))
+        response_data = response.json
+        self.assertIsInstance(response_data, list,
+                              "Things GET response is not a list")
+        self.assertEqual(len(response_data), len(self.thing_data),
+                         "Things GET response did not return correct number of items")
 
-    def test_post_things(self):
+        # Verify the test data and only the test data is returned
+        match_things_test = self.thing_data.copy()
+        for response_thing in response_data:
+            thing_copy = response_thing.copy()
+            del thing_copy['id']
+            with self.subTest("Match test", thing=thing_copy):
+                self.assertIn(thing_copy, self.thing_data)
+                match_things_test.remove(thing_copy)
+        self.assertListEqual(match_things_test, [],
+                             "Unknown things in database")
+
+    def test_post_thing(self):
         """Test POSTing Things."""
         new_thing = {'name': 'newthing'}
+        response_fields = {'id'}
         response = self.post_json('/things', new_thing)
         self.assertStatusCreated(response)
         self.assertJsonHeader(response)
 
-        data = response.json
-        # ID can not be determined ahead of time and will interfere with this test
-        del data['id']
-        self.assertIsInstance(data, dict)
-        self.assertSetEqual(set(data), set(new_thing))
+        new_thing_response = response.json
+        self.assertIsInstance(new_thing_response, dict,
+                              "Thing POST response is not a dict")
+        self.assertSetEqual(set(new_thing_response), response_fields,
+                            "Thing POST response does not match required fields")
+        # TODO: When getting specific items is implemented get and check this one
