@@ -30,4 +30,4 @@ def post_thing():
     db.session.add(thing)
     db.session.commit()
     # TODO: Error handling
-    return json_response(thing, HTTPStatus.CREATED)
+    return json_response(thing.as_dict(), HTTPStatus.CREATED)
