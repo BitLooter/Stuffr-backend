@@ -18,7 +18,7 @@ def json_response(data, status_code=HTTPStatus.OK):
 @bp.route('/things')
 def get_things():
     """Provide a list of things from the database."""
-    things = db.session.query(models.Thing).all()
+    things = models.Thing.query.all()
     things_list = [t.as_dict() for t in things]
     return json_response(things_list)
 
@@ -31,3 +31,13 @@ def post_thing():
     db.session.commit()
     # TODO: Error handling
     return json_response(thing.as_dict(), HTTPStatus.CREATED)
+
+
+@bp.route('/things/<int:thing_id>', methods=['PUT'])
+def update_thing(thing_id):
+    """PUT (update) a thing in the database."""
+    thing = models.Thing.query.get(thing_id)
+    thing.name = request.get_json()['name']
+    db.session.commit()
+    # TODO: Error handling
+    return json_response(thing.as_dict())

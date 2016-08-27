@@ -1,5 +1,6 @@
 """Data models for Stuffr."""
 
+import datetime
 import sqlalchemy
 
 from database import db
@@ -23,6 +24,7 @@ class Thing(Base):
 
     __tablename__ = 'things'
     name = db.Column(db.String)
+    date_created = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
     def __repr__(self):
         """Basic Thing data as a string."""
