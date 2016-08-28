@@ -30,7 +30,8 @@ def post_thing():
     db.session.add(thing)
     db.session.commit()
     # TODO: Error handling
-    return json_response(thing.as_dict(), HTTPStatus.CREATED)
+    initializedData = {k: thing.as_dict()[k] for k in ('id', 'date_created')}
+    return json_response(initializedData, HTTPStatus.CREATED)
 
 
 @bp.route('/things/<int:thing_id>', methods=['PUT'])
@@ -40,4 +41,5 @@ def update_thing(thing_id):
     thing.name = request.get_json()['name']
     db.session.commit()
     # TODO: Error handling
+    # TODO: Handle updating a nonexistant item (error?)
     return json_response(thing.as_dict())
