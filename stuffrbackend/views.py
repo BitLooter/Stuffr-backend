@@ -8,6 +8,8 @@ from stuffrbackend import bp
 import stuffrbackend.models as models
 from database import db
 
+NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
+
 
 def json_response(data, status_code=HTTPStatus.OK):
     """Create a response object suitable for JSON data."""
@@ -42,4 +44,14 @@ def update_thing(thing_id):
     db.session.commit()
     # TODO: Error handling
     # TODO: Handle updating a nonexistant item (error?)
-    return json_response(thing.as_dict())
+    return NO_CONTENT
+
+
+@bp.route('/things/<int:thing_id>', methods=['DELETE'])
+def delete_thing(thing_id):
+    """DELETE a thing in the database."""
+    models.Thing.query.filter_by(id=thing_id).delete()
+    db.session.commit()
+    # TODO: Error handling
+    # TODO: Handle updating a nonexistant item (error?)
+    return NO_CONTENT
