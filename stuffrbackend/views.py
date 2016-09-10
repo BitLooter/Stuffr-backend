@@ -1,7 +1,9 @@
 """REST views for stuffr."""
 
+import datetime
 from http import HTTPStatus
-from flask import jsonify
+import json
+# from flask import jsonify
 from flask import request
 
 from stuffrbackend import bp
@@ -11,9 +13,17 @@ from database import db
 NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
 
 
+def serialize_json(o):
+    """Convert unserializable types for JSON encoding."""
+    if isinstance(o, datetime.datetime):
+        return o.isoformat()
+    else:
+        raise TypeError("JSON: Cannot serialize {}".format(type(o)))
+
+
 def json_response(data, status_code=HTTPStatus.OK):
     """Create a response object suitable for JSON data."""
-    json_data = jsonify(data)
+    json_data = json.dumps(data, default=serialize_json)
     return json_data, status_code, {'Content-Type': 'application/json'}
 
 

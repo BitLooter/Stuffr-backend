@@ -1,5 +1,6 @@
 """Test cases for Stuffr views."""
 
+import datetime
 from http import HTTPStatus
 import json
 
@@ -58,9 +59,11 @@ class TestStuffrViews(TestCase, CommonAssertions):
         db.create_all()
 
         # Create some test data
+        test_time = datetime.datetime(2011, 11, 11, 11, 11, 11,
+                                      tzinfo=datetime.timezone.utc)
         self.thing_data = [
-            {'name': 'thing1'},
-            {'name': 'thing2'}
+            {'name': 'thing1', 'date_created': test_time},
+            {'name': 'thing2', 'date_created': test_time}
         ]
         things = [models.Thing(**t) for t in self.thing_data]
         db.session.add_all(things)
@@ -92,21 +95,25 @@ class TestStuffrViews(TestCase, CommonAssertions):
         self.assertEqual(len(response_data), len(self.thing_data),
                          "Things GET response did not return correct number of items")
 
+        # Prepare test data
+        expected_response = []
+        for thing in self.thing_data.copy():
+            thing['date_created'] = thing['date_created'].isoformat()
+            expected_response.append(thing)
         # Verify the test data and only the test data is returned
-        match_things_test = self.thing_data.copy()
         for response_thing in response_data:
             thing_copy = response_thing.copy()
             del thing_copy['id']
             with self.subTest("Match test", thing=thing_copy):
                 self.assertIn(thing_copy, self.thing_data)
-                match_things_test.remove(thing_copy)
-        self.assertListEqual(match_things_test, [],
+                expected_response.remove(thing_copy)
+        self.assertListEqual(expected_response, [],
                              "Unknown things in database")
 
     def test_post_thing(self):
         """Test POSTing Things."""
         new_thing = {'name': 'newthing'}
-        response_fields = {'id'}
+        response_fields = {'id', 'date_created'}
         response = self.post_json('/things', new_thing)
         self.assertStatusCreated(response)
         self.assertJsonHeader(response)
