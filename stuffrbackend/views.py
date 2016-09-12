@@ -3,7 +3,6 @@
 import datetime
 from http import HTTPStatus
 import json
-# from flask import jsonify
 from flask import request
 
 from stuffrbackend import bp
@@ -13,12 +12,12 @@ from database import db
 NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
 
 
-def serialize_json(o):
+def serialize_json(obj):
     """Convert unserializable types for JSON encoding."""
-    if isinstance(o, datetime.datetime):
-        return o.isoformat()
+    if isinstance(obj, datetime.datetime):
+        return obj.isoformat()
     else:
-        raise TypeError("JSON: Cannot serialize {}".format(type(o)))
+        raise TypeError("JSON: Cannot serialize {}".format(type(obj)))
 
 
 def json_response(data, status_code=HTTPStatus.OK):
