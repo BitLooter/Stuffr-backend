@@ -10,9 +10,11 @@ import stuffrbackend.models as models
 from database import db
 
 NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
+# These fields are created by the server, not passed in from the client.
+SERVER_CREATED_FIELDS = ('id', 'date_created')
 
 
-def serialize_json(obj):
+def serialize_object(obj):
     """Convert unserializable types for JSON encoding."""
     if isinstance(obj, datetime.datetime):
         return obj.isoformat()
@@ -22,7 +24,7 @@ def serialize_json(obj):
 
 def json_response(data, status_code=HTTPStatus.OK):
     """Create a response object suitable for JSON data."""
-    json_data = json.dumps(data, default=serialize_json)
+    json_data = json.dumps(data, default=serialize_object)
     return json_data, status_code, {'Content-Type': 'application/json'}
 
 
@@ -41,7 +43,7 @@ def post_thing():
     db.session.add(thing)
     db.session.commit()
     # TODO: Error handling
-    initializedData = {k: thing.as_dict()[k] for k in ('id', 'date_created')}
+    initializedData = {k: thing.as_dict()[k] for k in SERVER_CREATED_FIELDS}
     return json_response(initializedData, HTTPStatus.CREATED)
 
 
