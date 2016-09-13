@@ -1,5 +1,6 @@
 Flask==0.11.1
 SQLAlchemy==1.0.13
+alembic=0.8.8
 Flask-SQLAlchemy==2.1
 Flask-DebugToolbar==0.10.0
 Flask-Testing==0.5.0
