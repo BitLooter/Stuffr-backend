@@ -11,7 +11,7 @@ from database import db
 
 NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
 # These fields are created by the server, not passed in from the client.
-SERVER_CREATED_FIELDS = ('id', 'date_created')
+SERVER_CREATED_FIELDS = ('id', 'date_created', 'date_updated')
 
 
 def serialize_object(obj):

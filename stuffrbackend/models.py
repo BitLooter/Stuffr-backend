@@ -32,6 +32,8 @@ class Thing(Base):
         # SQLite does not keep timezone information, assume UTC
         if self.date_created.tzinfo is None:
             self.date_created = self.date_created.replace(tzinfo=datetime.timezone.utc)
+        if self.date_updated.tzinfo is None:
+            self.date_updated = self.date_created.replace(tzinfo=datetime.timezone.utc)
         return Base.as_dict(self)
 
     # TODO: Fix this property code
