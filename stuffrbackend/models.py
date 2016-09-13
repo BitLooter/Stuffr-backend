@@ -23,8 +23,9 @@ class Thing(Base):
     """Model for generic thing data."""
 
     __tablename__ = 'things'
-    name = db.Column(db.String)
-    date_created = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    name = db.Column(db.String, nullable=False)
+    date_created = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
+    date_updated = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
 
     def as_dict(self):
         """Fix datetime columns before creating dict."""
