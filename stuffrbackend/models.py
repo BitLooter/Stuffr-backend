@@ -25,15 +25,17 @@ class Thing(Base):
     __tablename__ = 'things'
     name = db.Column(db.String, nullable=False)
     date_created = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
-    date_updated = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
+    date_modified = db.Column(db.DateTime, nullable=False,
+                              default=datetime.datetime.utcnow,
+                              onupdate=datetime.datetime.utcnow)
 
     def as_dict(self):
         """Fix datetime columns before creating dict."""
         # SQLite does not keep timezone information, assume UTC
         if self.date_created.tzinfo is None:
             self.date_created = self.date_created.replace(tzinfo=datetime.timezone.utc)
-        if self.date_updated.tzinfo is None:
-            self.date_updated = self.date_created.replace(tzinfo=datetime.timezone.utc)
+        if self.date_modified.tzinfo is None:
+            self.date_modified = self.date_modified.replace(tzinfo=datetime.timezone.utc)
         return Base.as_dict(self)
 
     # TODO: Fix this property code

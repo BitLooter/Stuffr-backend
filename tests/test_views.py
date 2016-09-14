@@ -11,8 +11,8 @@ from stuffrbackend import models
 TEST_TIME = datetime.datetime(2011, 11, 11, 11, 11, 11,
                               tzinfo=datetime.timezone.utc)
 THING_DATA = [
-    {'name': 'thing1', 'date_created': TEST_TIME, 'date_updated': TEST_TIME},
-    {'name': 'thing2', 'date_created': TEST_TIME, 'date_updated': TEST_TIME}
+    {'name': 'thing1', 'date_created': TEST_TIME, 'date_modified': TEST_TIME},
+    {'name': 'thing2', 'date_created': TEST_TIME, 'date_modified': TEST_TIME}
 ]
 
 
@@ -53,7 +53,7 @@ def test_get_things(client):
     for thing in THING_DATA:
         expected_thing = thing.copy()
         expected_thing['date_created'] = thing['date_created'].isoformat()
-        expected_thing['date_updated'] = thing['date_updated'].isoformat()
+        expected_thing['date_modified'] = thing['date_modified'].isoformat()
         expected_response.append(expected_thing)
 
     response = client.get('/things')
@@ -76,7 +76,7 @@ def test_get_things(client):
 def test_post_thing(client):
     """Test POSTing Things."""
     new_thing_data = {'name': 'NEWTHING'}
-    response_fields = {'id', 'date_created', 'date_updated'}
+    response_fields = {'id', 'date_created', 'date_modified'}
 
     response = post_as_json(client, '/things', new_thing_data)
     assert response.status_code == HTTPStatus.CREATED

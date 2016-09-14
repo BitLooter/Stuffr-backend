@@ -24,7 +24,7 @@ def upgrade():  # NOQA
                   server_default='NONAME'),
         sa.Column('date_created', sa.DateTime, nullable=False,
                   server_default='1970-01-01T00:00:00Z'),
-        sa.Column('date_updated', sa.DateTime(), nullable=False,
+        sa.Column('date_modified', sa.DateTime(), nullable=False,
                   server_default='1970-01-01T00:00:00Z')
     )
 

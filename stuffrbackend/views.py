@@ -11,7 +11,7 @@ from database import db
 
 NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
 # These fields are created by the server, not passed in from the client.
-SERVER_CREATED_FIELDS = ('id', 'date_created', 'date_updated')
+SERVER_CREATED_FIELDS = ('id', 'date_created', 'date_modified')
 
 
 def serialize_object(obj):
@@ -43,6 +43,7 @@ def post_thing():
     db.session.add(thing)
     db.session.commit()
     # TODO: Error handling
+    # TODO: Prevent setting backend-managed columns such as id, date_created, etc.
     initializedData = {k: thing.as_dict()[k] for k in SERVER_CREATED_FIELDS}
     return json_response(initializedData, HTTPStatus.CREATED)
 
