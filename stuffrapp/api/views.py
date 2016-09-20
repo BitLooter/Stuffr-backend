@@ -3,11 +3,13 @@
 import datetime
 from http import HTTPStatus
 import json
-from flask import request
+from flask import request, Blueprint
 
-from stuffrbackend import bp
-import stuffrbackend.models as models
+from . import models
 from database import db
+
+bp = Blueprint('stuffrapi', __name__)
+
 
 NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
 # These fields are created by the server, not passed in from the client.
