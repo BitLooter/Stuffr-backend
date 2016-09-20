@@ -3,12 +3,17 @@
 
 from flask import render_template
 from flask_debugtoolbar import DebugToolbarExtension
+from flask_migrate import Migrate, MigrateCommand
 from flask_script import Manager
 
 from stuffrapp import create_app
+from database import db
 
 stuffr_app = create_app()
 manager = Manager(stuffr_app)
+
+migrate = Migrate(stuffr_app, db)
+manager.add_command('db', MigrateCommand)
 
 
 @manager.command
@@ -24,6 +29,12 @@ def runserver():
 
     stuffr_app.run(stuffr_app.config['SERVER_DEBUG_HOST'],
                    stuffr_app.config['SERVER_DEBUG_PORT'])
+
+
+@manager.command
+def initdb():
+    """Create and initialize Stuffr's database."""
+    pass
 
 
 if __name__ == "__main__":
