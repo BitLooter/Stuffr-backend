@@ -1,6 +1,6 @@
 """Test cases for Stuffr models."""
 
-from stuffrbackend import models
+from stuffrapp.api import models
 
 
 def test_flask_stuff():

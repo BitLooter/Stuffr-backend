@@ -14,6 +14,8 @@ bp = Blueprint('stuffrapi', __name__)
 NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
 # These fields are created by the server, not passed in from the client.
 SERVER_CREATED_FIELDS = ('id', 'date_created', 'date_modified')
+# Fields client is allowed to modify
+CLIENT_FIELDS = ('name', 'description', 'notes')
 
 
 def serialize_object(obj):
@@ -41,7 +43,11 @@ def get_things():
 @bp.route('/things', methods=['POST'])
 def post_thing():
     """POST a thing to the database."""
-    thing = models.Thing(name=request.get_json()['name'])
+    request_data = request.get_json()
+    # Filter only desired fields
+    new_thing_data = {k: request_data[k] for k in request_data
+                      if k in CLIENT_FIELDS}
+    thing = models.Thing(**new_thing_data)
     db.session.add(thing)
     db.session.commit()
     # TODO: Error handling
@@ -53,8 +59,15 @@ def post_thing():
 @bp.route('/things/<int:thing_id>', methods=['PUT'])
 def update_thing(thing_id):
     """PUT (update) a thing in the database."""
+    request_data = request.get_json()
+    # Filter only desired fields
+    # update_thing_data = {k: request_data[k] for k in request_data
+    #                   if k in POST_FIELDS}
     thing = models.Thing.query.get(thing_id)
-    thing.name = request.get_json()['name']
+    for field in CLIENT_FIELDS:
+        if field in request_data:
+            setattr(thing, field, request_data[field])
+    # thing.name = request.get_json()['name']
     db.session.commit()
     # TODO: Error handling
     # TODO: Handle updating a nonexistant item (error?)

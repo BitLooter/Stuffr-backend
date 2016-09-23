@@ -28,6 +28,8 @@ class Thing(Base):
     date_modified = db.Column(db.DateTime, nullable=False,
                               default=datetime.datetime.utcnow,
                               onupdate=datetime.datetime.utcnow)
+    description = db.Column(db.UnicodeText)
+    notes = db.Column(db.UnicodeText)
 
     def as_dict(self):
         """Fix datetime columns before creating dict."""

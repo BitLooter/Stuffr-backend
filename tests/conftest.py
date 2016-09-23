@@ -15,6 +15,6 @@ def app(scope='session'):
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite://'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     db.init_app(app)
-    from stuffrbackend import bp as stuffr_bp
+    from stuffrapp.api.views import bp as stuffr_bp
     app.register_blueprint(stuffr_bp)
     return app

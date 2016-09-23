@@ -4,7 +4,7 @@ import datetime
 from http import HTTPStatus
 import pytest
 
-from stuffrbackend import views
+from stuffrapp.api import views
 
 TEST_TIME = datetime.datetime(2011, 11, 11, 11, 11, 11,
                               tzinfo=datetime.timezone.utc)

@@ -1,18 +1,22 @@
 """Test cases for Stuffr views."""
 
+# TODO: Test more error cases
+
 import datetime
 from http import HTTPStatus
 import json
 import pytest
 
 from database import db
-from stuffrbackend import models
+from stuffrapp.api import models
 
 TEST_TIME = datetime.datetime(2011, 11, 11, 11, 11, 11,
                               tzinfo=datetime.timezone.utc)
 THING_DATA = [
-    {'name': 'thing1', 'date_created': TEST_TIME, 'date_modified': TEST_TIME},
-    {'name': 'thing2', 'date_created': TEST_TIME, 'date_modified': TEST_TIME}
+    {'name': 'thing1', 'date_created': TEST_TIME, 'date_modified': TEST_TIME,
+     'description': "Test Thing 1", 'notes': "For unit testing"},
+    {'name': 'thing2', 'date_created': TEST_TIME, 'date_modified': TEST_TIME,
+     'description': "Test Thing 2", 'notes': "For unit testing"}
 ]
 
 
@@ -75,7 +79,10 @@ def test_get_things(client):
 
 def test_post_thing(client):
     """Test POSTing Things."""
-    new_thing_data = {'name': 'NEWTHING'}
+    new_thing_data = {
+        'name': 'NEWTHING',
+        'description': "Test new description",
+        'notes': "Test new notes"}
     response_fields = {'id', 'date_created', 'date_modified'}
 
     response = post_as_json(client, '/things', new_thing_data)
@@ -98,10 +105,14 @@ def test_post_thing(client):
 def test_update_thing(client):
     """Test PUT (updating) a thing."""
     original_thing = models.Thing.query.first()
-    expected_thing = original_thing.as_dict()
-    expected_thing['name'] = 'MODIFIED'
+    expected_data = original_thing.as_dict()
+    expected_data['name'] = 'MODIFIED_NAME'
+    expected_data['description'] = 'MODIFIED_DESC'
+    expected_data['notes'] = 'MODIFIED_NOTES'
     thing_id = original_thing.id
-    modified_fields = {'name': 'MODIFIED'}
+    modified_fields = {'name': expected_data['name'],
+                       'description': expected_data['description'],
+                       'notes': expected_data['notes']}
 
     response = post_as_json(client,
                             '/things/{}'.format(thing_id),
@@ -109,9 +120,10 @@ def test_update_thing(client):
                             method='PUT')
     assert response.status_code == HTTPStatus.NO_CONTENT
 
-    modified_thing = models.Thing.query.get(thing_id)
-    assert modified_thing.name == original_thing.name
-    assert modified_thing.name == expected_thing['name']
+    modified_data = models.Thing.query.get(thing_id).as_dict()
+    # Do not compare modification date
+    del modified_data['date_modified'], expected_data['date_modified']
+    assert modified_data == expected_data
 
 
 def test_delete_thing(client):
