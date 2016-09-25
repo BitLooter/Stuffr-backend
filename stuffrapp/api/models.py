@@ -24,12 +24,17 @@ class Thing(Base):
 
     __tablename__ = 'things'
     name = db.Column(db.String, nullable=False)
-    date_created = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
+    date_created = db.Column(db.DateTime, nullable=False,
+                             default=datetime.datetime.utcnow)
     date_modified = db.Column(db.DateTime, nullable=False,
                               default=datetime.datetime.utcnow,
                               onupdate=datetime.datetime.utcnow)
     description = db.Column(db.UnicodeText)
     notes = db.Column(db.UnicodeText)
+    # Fields for server use
+    # Deleted cannot be made non-nullable, as this would require a
+    # non-portable server_default in migrations.
+    date_deleted = db.Column(db.DateTime)
 
     def as_dict(self):
         """Fix datetime columns before creating dict."""

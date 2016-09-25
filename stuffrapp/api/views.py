@@ -11,11 +11,24 @@ from database import db
 bp = Blueprint('stuffrapi', __name__)
 
 
+def get_entity_names(entities):
+    """Return a list containing the column names of all given entities."""
+    return [c.property.key for c in entities]
+
+
 NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
-# These fields are created by the server, not passed in from the client.
-SERVER_CREATED_FIELDS = ('id', 'date_created', 'date_modified')
+# Fields sent to the client
+CLIENT_ENTITIES = (models.Thing.id, models.Thing.name,
+                   models.Thing.date_created, models.Thing.date_modified,
+                   models.Thing.description, models.Thing.notes)
 # Fields client is allowed to modify
-CLIENT_FIELDS = ('name', 'description', 'notes')
+USER_ENTITIES = (models.Thing.name,
+                 models.Thing.description, models.Thing.notes)
+USER_COLS = get_entity_names(USER_ENTITIES)
+# These fields are initialized by the server, not passed in from the client.
+SERVER_INITIALIZED_ENTITIES = (
+    models.Thing.id, models.Thing.date_created, models.Thing.date_modified)
+SERVER_INITIALIZED_COLS = get_entity_names(SERVER_INITIALIZED_ENTITIES)
 
 
 def serialize_object(obj):
@@ -32,12 +45,24 @@ def json_response(data, status_code=HTTPStatus.OK):
     return json_data, status_code, {'Content-Type': 'application/json'}
 
 
+# Routes
+#########
+
 @bp.route('/things')
 def get_things():
     """Provide a list of things from the database."""
-    things = models.Thing.query.all()
-    things_list = [t.as_dict() for t in things]
-    return json_response(things_list)
+    things = models.Thing.query.with_entities(*CLIENT_ENTITIES). \
+        filter(models.Thing.date_deleted == None).all()  # noqa: E711
+    # SQLite does not keep timezone information, assume UTC
+    fixed_things = []
+    for thing in things:
+        fixed_thing = thing._asdict()
+        if fixed_thing['date_created'].tzinfo is None:
+            fixed_thing['date_created'] = fixed_thing['date_created'].replace(tzinfo=datetime.timezone.utc)
+        if fixed_thing['date_modified'].tzinfo is None:
+            fixed_thing['date_modified'] = fixed_thing['date_modified'].replace(tzinfo=datetime.timezone.utc)
+        fixed_things.append(fixed_thing)
+    return json_response(fixed_things)
 
 
 @bp.route('/things', methods=['POST'])
@@ -46,13 +71,12 @@ def post_thing():
     request_data = request.get_json()
     # Filter only desired fields
     new_thing_data = {k: request_data[k] for k in request_data
-                      if k in CLIENT_FIELDS}
+                      if k in USER_COLS}
     thing = models.Thing(**new_thing_data)
     db.session.add(thing)
     db.session.commit()
     # TODO: Error handling
-    # TODO: Prevent setting backend-managed columns such as id, date_created, etc.
-    initializedData = {k: thing.as_dict()[k] for k in SERVER_CREATED_FIELDS}
+    initializedData = {k: thing.as_dict()[k] for k in SERVER_INITIALIZED_COLS}
     return json_response(initializedData, HTTPStatus.CREATED)
 
 
@@ -61,13 +85,10 @@ def update_thing(thing_id):
     """PUT (update) a thing in the database."""
     request_data = request.get_json()
     # Filter only desired fields
-    # update_thing_data = {k: request_data[k] for k in request_data
-    #                   if k in POST_FIELDS}
     thing = models.Thing.query.get(thing_id)
-    for field in CLIENT_FIELDS:
+    for field in USER_COLS:
         if field in request_data:
             setattr(thing, field, request_data[field])
-    # thing.name = request.get_json()['name']
     db.session.commit()
     # TODO: Error handling
     # TODO: Handle updating a nonexistant item (error?)
@@ -77,7 +98,8 @@ def update_thing(thing_id):
 @bp.route('/things/<int:thing_id>', methods=['DELETE'])
 def delete_thing(thing_id):
     """DELETE a thing in the database."""
-    models.Thing.query.filter_by(id=thing_id).delete()
+    thing = models.Thing.query.get(thing_id)
+    thing.date_deleted = datetime.datetime.utcnow()
     db.session.commit()
     # TODO: Error handling
     # TODO: Handle updating a nonexistant item (error?)

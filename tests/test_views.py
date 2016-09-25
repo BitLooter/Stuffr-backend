@@ -67,7 +67,8 @@ def test_get_things(client):
     response_data = response.json
     assert isinstance(response_data, list)
     assert len(response_data) == len(THING_DATA)
-
+    print(response_data[0])
+    print(expected_response[0])
     # Verify the test data and only the test data is returned
     for response_thing in response_data:
         assert response_thing['id'] is not None
@@ -84,6 +85,7 @@ def test_post_thing(client):
         'description': "Test new description",
         'notes': "Test new notes"}
     response_fields = {'id', 'date_created', 'date_modified'}
+    server_fields = {'date_deleted'}
 
     response = post_as_json(client, '/things', new_thing_data)
     assert response.status_code == HTTPStatus.CREATED
@@ -98,7 +100,7 @@ def test_post_thing(client):
     created_thing_dict = created_thing.as_dict()
     # Remove fields added by database
     created_thing_dict = {k: created_thing_dict[k] for k in created_thing_dict
-                          if k not in response_fields}
+                          if k not in response_fields.union(server_fields)}
     assert new_thing_data == created_thing_dict
 
 
@@ -130,11 +132,9 @@ def test_delete_thing(client):
     """Test DELETE a thing."""
     original_thing = models.Thing.query.first()
     thing_id = original_thing.id
-    original_count = models.Thing.query.count()
-    expected_count = original_count - 1
 
+    assert original_thing.date_deleted is None
     response = client.delete('/things/{}'.format(thing_id))
     assert response.status_code == HTTPStatus.NO_CONTENT
     modified_thing = models.Thing.query.get(thing_id)
-    assert modified_thing is None
-    assert models.Thing.query.count() == expected_count
+    assert modified_thing.date_deleted is not None

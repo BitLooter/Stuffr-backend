@@ -17,12 +17,13 @@ import sqlalchemy as sa
 def upgrade():
     """Two columns added."""
     op.add_column('things',
-                  sa.Column('description', sa.UnicodeText(), nullable=True))
+                  sa.Column('description', sa.UnicodeText, nullable=True))
     op.add_column('things',
-                  sa.Column('notes', sa.UnicodeText(), nullable=True))
+                  sa.Column('notes', sa.UnicodeText, nullable=True))
 
 
 def downgrade():
     """Remove two added columns."""
-    op.drop_column('things', 'notes')
-    op.drop_column('things', 'description')
+    with op.batch_alter_table('things', schema=None) as batch_op:
+        batch_op.drop_column('notes')
+        batch_op.drop_column('description')
