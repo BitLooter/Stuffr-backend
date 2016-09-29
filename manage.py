@@ -31,11 +31,5 @@ def runserver():
                    stuffr_app.config['SERVER_DEBUG_PORT'])
 
 
-@manager.command
-def initdb():
-    """Create and initialize Stuffr's database."""
-    pass
-
-
 if __name__ == "__main__":
     manager.run()

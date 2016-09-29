@@ -60,7 +60,7 @@ def test_get_things(client):
         expected_thing['date_modified'] = thing['date_modified'].isoformat()
         expected_response.append(expected_thing)
 
-    response = client.get('/things')
+    response = client.get('/api/things')
     assert response.status_code == HTTPStatus.OK
     assert response.headers['Content-Type'] == 'application/json'
 
@@ -87,7 +87,7 @@ def test_post_thing(client):
     response_fields = {'id', 'date_created', 'date_modified'}
     server_fields = {'date_deleted'}
 
-    response = post_as_json(client, '/things', new_thing_data)
+    response = post_as_json(client, '/api/things', new_thing_data)
     assert response.status_code == HTTPStatus.CREATED
     assert response.headers['Content-Type'] == 'application/json'
 
@@ -117,7 +117,7 @@ def test_update_thing(client):
                        'notes': expected_data['notes']}
 
     response = post_as_json(client,
-                            '/things/{}'.format(thing_id),
+                            '/api/things/{}'.format(thing_id),
                             modified_fields,
                             method='PUT')
     assert response.status_code == HTTPStatus.NO_CONTENT
@@ -134,7 +134,7 @@ def test_delete_thing(client):
     thing_id = original_thing.id
 
     assert original_thing.date_deleted is None
-    response = client.delete('/things/{}'.format(thing_id))
+    response = client.delete('/api/things/{}'.format(thing_id))
     assert response.status_code == HTTPStatus.NO_CONTENT
     modified_thing = models.Thing.query.get(thing_id)
     assert modified_thing.date_deleted is not None
