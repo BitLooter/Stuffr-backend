@@ -4,7 +4,7 @@ import datetime
 from http import HTTPStatus
 import pytest
 
-from stuffrapp.api import views
+from stuffrapp.api import views, models
 
 TEST_TIME = datetime.datetime(2011, 11, 11, 11, 11, 11,
                               tzinfo=datetime.timezone.utc)
@@ -37,3 +37,38 @@ def test_json_response():
     # Unserializable ojbects given
     with pytest.raises(TypeError):
         views.json_response(test_json_response)
+
+
+def test_filter_user_fields():
+    """Test function used to extract user fields from an input dict."""
+    VALID_FIELDS = {'name'}
+    server_field_thing = {
+        'name': 'Should be in returned object',
+        'date_created': 'Should not be in returned object'
+    }
+    cleaned_thing = views.filter_user_fields(server_field_thing)
+    assert VALID_FIELDS == cleaned_thing.keys()
+
+    bad_field_thing = {
+        'name': 'Should be in returned object',
+        'DOESNOTEXIST': 'Should not be in returned object'
+    }
+    cleaned_thing = views.filter_user_fields(bad_field_thing)
+    assert VALID_FIELDS == cleaned_thing.keys()
+
+
+def test_fix_thing_dict_times():
+    """Test function that sets times in thing data without offsets to UTC."""
+    test_thing = models.Thing()
+    PST_OFFSET = -8
+    PST_TIME = TEST_TIME.replace(tzinfo=datetime.timezone(
+        datetime.timedelta(hours=PST_OFFSET)))
+    NOTZ_TIME = TEST_TIME.replace(tzinfo=None)
+    test_thing.date_created = TEST_TIME
+    test_thing.date_modified = PST_TIME
+    test_thing.date_deleted = NOTZ_TIME
+    fixed_thing = views.fix_thing_dict_times(test_thing.as_dict())
+    assert fixed_thing['date_created'].tzinfo == datetime.timezone.utc
+    assert fixed_thing['date_modified'].tzinfo == datetime.timezone(
+        datetime.timedelta(hours=PST_OFFSET))
+    assert fixed_thing['date_deleted'].tzinfo is None
