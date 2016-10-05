@@ -155,7 +155,13 @@ def update_thing(thing_id):
     # Filter only desired fields
     update_thing_data = filter_user_fields(request_data)
 
-    models.Thing.query.filter_by(id=thing_id).update(update_thing_data)
+    thing = models.Thing.query.filter_by(id=thing_id)
+    if thing.one_or_none() is None:
+        return error_response(
+            'No thing with id {}'.format(thing_id),
+            status_code=HTTPStatus.NOT_FOUND
+        )
+    thing.update(update_thing_data)
     db.session.commit()
     # TODO: Handle updating a nonexistant item (error?)
     return NO_CONTENT
@@ -172,6 +178,4 @@ def delete_thing(thing_id):
         )
     thing.date_deleted = datetime.datetime.utcnow()
     db.session.commit()
-    # TODO: Error handling
-    # TODO: Handle updating a nonexistant item (error?)
     return NO_CONTENT

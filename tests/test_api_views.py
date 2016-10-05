@@ -65,7 +65,7 @@ def check_common_thing_errors(request_func, url, method, thing_id=None):
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
-def check_ignore_nonuser_fields(request_func, thing_id, url, expected_status):
+def check_ignore_nonuser_fields(request_func, url, thing_id, expected_status):
     """Check that a view does not modify non-user data."""
     server_field_thing = {
         'name': 'Ignore other field',
@@ -139,8 +139,8 @@ def test_post_thing(client):
     # Test error conditions
     #######################
     check_common_thing_errors(client.post, things_url, 'POST')
-    check_ignore_nonuser_fields(client.post, None,
-                                things_url, HTTPStatus.CREATED)
+    check_ignore_nonuser_fields(client.post, things_url, None,
+                                HTTPStatus.CREATED)
 
     # Empty object
     no_fields_thing = {}
@@ -181,8 +181,26 @@ def test_update_thing(client):
     # Test error conditions
     #######################
     check_common_thing_errors(client.put, thing_url, 'PUT')
-    check_ignore_nonuser_fields(client.put, thing_id,
-                                thing_url, HTTPStatus.NO_CONTENT)
+    check_ignore_nonuser_fields(client.put, thing_url, thing_id,
+                                HTTPStatus.NO_CONTENT)
+
+    # Update nonexistant thing
+    invalid_id_thing = {'name': 'Should fail'}
+    invalid_id = db.session.query(db.func.max(models.Thing.id)).scalar() + 1
+    response = post_as_json(client.put,
+                            url_for('stuffrapi.update_thing',
+                                    thing_id=invalid_id),
+                            invalid_id_thing)
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+    # Check updating something that isn't a numerical ID
+    # Using get_things because url_for checks type
+    bad_id_thing = {'name': 'Should fail'}
+    response = post_as_json(client.put,
+                            url_for('stuffrapi.get_things') + '/notanid',
+                            bad_id_thing)
+    # Flask view looks for an int after /things, no view is set up for str
+    assert response.status_code == HTTPStatus.METHOD_NOT_ALLOWED
 
 
 def test_delete_thing(client):
@@ -198,8 +216,9 @@ def test_delete_thing(client):
     assert thing_to_delete.date_deleted is not None
 
     # Check deleting nonexistant item
+    invalid_id = db.session.query(db.func.max(models.Thing.id)).scalar() + 1
     response = client.delete(url_for('stuffrapi.delete_thing',
-                                     thing_id=max(id_list) + 1))
+                                     thing_id=invalid_id))
     assert response.status_code == HTTPStatus.NOT_FOUND
 
     # Check deleting something that isn't a numerical ID
