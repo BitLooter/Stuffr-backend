@@ -19,6 +19,16 @@ class Base(db.Model):
                 for c in sqlalchemy.inspect(self).mapper.column_attrs}
 
 
+class StuffrInfo(Base):
+    """Model for database metadata."""
+
+    creator_name = db.Column(db.Unicode, nullable=False)
+
+    def __repr__(self):
+        """Basic StuffrInfo data as a string."""
+        return "<StuffrInfo creator_name='{}'>".format(self.creator_name)
+
+
 class Thing(Base):
     """Model for generic thing data."""
 
@@ -29,12 +39,9 @@ class Thing(Base):
     date_modified = db.Column(db.DateTime, nullable=False,
                               default=datetime.datetime.utcnow,
                               onupdate=datetime.datetime.utcnow)
+    date_deleted = db.Column(db.DateTime)
     description = db.Column(db.UnicodeText)
     notes = db.Column(db.UnicodeText)
-    # Fields for server use
-    # Deleted cannot be made non-nullable, as this would require a
-    # non-portable server_default in migrations.
-    date_deleted = db.Column(db.DateTime)
 
     def as_dict(self):
         """Fix datetime columns before creating dict."""
@@ -44,21 +51,6 @@ class Thing(Base):
         if self.date_modified.tzinfo is None:
             self.date_modified = self.date_modified.replace(tzinfo=datetime.timezone.utc)
         return Base.as_dict(self)
-
-    # TODO: Fix this property code
-    # @property
-    # @sqlalchemy.ext.declarative.synonym_for('_date_created')
-    # def date_created(self):
-    #     """Fix date before returning value."""
-    #     # SQLite does not keep timezone information, assume utcnow
-    #     if self._date_created.tzinfo is None:
-    #         self._date_created.tzinfo = datetime.timezone.utc
-    #     return self._date_created
-    #
-    # @date_created.setter
-    # def date_created(self, created):
-    #     """Set creation date."""
-    #     self._date_created = created
 
     def __repr__(self):
         """Basic Thing data as a string."""
