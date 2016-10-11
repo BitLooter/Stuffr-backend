@@ -26,23 +26,19 @@ def create_app(config_override={}):
 
     db.init_app(app)
     # TODO: Better initial setup
-    do_create = False
-    if (app.config['SQLALCHEMY_DATABASE_URI'] == 'sqlite://' or
-            ':memory:' in app.config['SQLALCHEMY_DATABASE_URI']):
-        do_create = True
     with app.app_context():
-        initialize_database(create=do_create)
+        if app.config['CREATE_TABLES']:
+            db.create_all()
+        if app.config['INITIALIZE_DATABASE']:
+            initialize_database()
 
     app.register_blueprint(blueprint_api, url_prefix='/api')
 
     return app
 
 
-def initialize_database(create=False):
+def initialize_database():
     """Set up the database with default data."""
-    if create:
-        db.create_all()
-
     try:
         db_info = models.StuffrInfo.query.one_or_none()
     except MultipleResultsFound as e:
@@ -54,10 +50,10 @@ def initialize_database(create=False):
         info = models.StuffrInfo(creator_name='Stuffr')
         db.session.add(info)
 
-        # default_user = models.User(name='DEFAULT_USER')
-        # db.session.add(default_user)
-        # default_inventory = models.Inventory(
-        #     name='DEFAULT_INVENTORY',
-        #     owner=default_user)
-        # db.session.add(default_inventory)
+        default_user = models.User(name='DEFAULT_USER')
+        db.session.add(default_user)
+        default_inventory = models.Inventory(
+            name='DEFAULT_INVENTORY',
+            owner=default_user)
+        db.session.add(default_inventory)
         db.session.commit()

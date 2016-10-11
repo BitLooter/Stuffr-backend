@@ -11,7 +11,9 @@ def app(scope='session'):
     test_config = {
         'TESTING': True,
         'SQLALCHEMY_DATABASE_URI': 'sqlite://',
-        'SQLALCHEMY_TRACK_MODIFICATIONS': False
+        'SQLALCHEMY_TRACK_MODIFICATIONS': False,
+        'CREATE_TABLES': False,
+        'INITIALIZE_DATABASE': False
     }
     app = create_app(config_override=test_config)
     return app

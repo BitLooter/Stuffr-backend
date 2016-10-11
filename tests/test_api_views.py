@@ -11,6 +11,12 @@ from stuffrapp.api import models
 
 TEST_TIME = datetime.datetime(2011, 11, 11, 11, 11, 11,
                               tzinfo=datetime.timezone.utc)
+USER_DATA = [
+    {'name': 'testuser'}
+]
+INVENTORY_DATA = [
+    {'name': 'Test inventory'}
+]
 THING_DATA = [
     {'name': 'thing1', 'date_created': TEST_TIME, 'date_modified': TEST_TIME,
      'description': "Test Thing 1", 'notes': "For unit testing"},
@@ -23,8 +29,15 @@ THING_DATA = [
 def setupdb():
     """Prepare the test database before use."""
     db.create_all()
-    things = [models.Thing(**t) for t in THING_DATA]
-    db.session.add_all(things)
+    user = models.User(**USER_DATA[0])
+    db.session.add(user)
+    inventory = models.Inventory(**INVENTORY_DATA[0])
+    inventory.owner = user
+    db.session.add(inventory)
+    for thing_data in THING_DATA:
+        thing = models.Thing(**thing_data)
+        thing.inventory = inventory
+        db.session.add(thing)
     db.session.commit()
     yield
     db.session.remove()
@@ -112,10 +125,12 @@ def test_get_things(client):
 
 def test_post_thing(client):
     """Test POSTing Things."""
+    inventory_id = models.Inventory.query.first().id
     new_thing_data = {
         'name': 'NEWTHING',
         'description': "Test new description",
-        'notes': "Test new notes"}
+        'notes': "Test new notes",
+        'inventory_id': inventory_id}
     response_fields = {'id', 'date_created', 'date_modified'}
     server_fields = {'date_deleted'}
     things_url = url_for('stuffrapi.post_thing')

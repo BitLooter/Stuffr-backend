@@ -136,6 +136,9 @@ def post_thing():
     new_thing_data = filter_user_fields(request_data)
 
     thing = models.Thing(**new_thing_data)
+    # TODO: Inventory will be specified by client
+    inventory = models.Inventory.query.first()
+    thing.inventory = inventory
     db.session.add(thing)
     db.session.commit()
     # TODO: Error handling - what if database is down?

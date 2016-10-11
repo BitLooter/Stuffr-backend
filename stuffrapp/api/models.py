@@ -6,7 +6,7 @@ import sqlalchemy
 from database import db
 
 
-class Base(db.Model):
+class BaseModel(db.Model):
     """Base class for all models."""
 
     __abstract__ = True
@@ -19,7 +19,7 @@ class Base(db.Model):
                 for c in sqlalchemy.inspect(self).mapper.column_attrs}
 
 
-class StuffrInfo(Base):
+class StuffrInfo(BaseModel):
     """Model for database metadata."""
 
     creator_name = db.Column(db.Unicode, nullable=False)
@@ -29,11 +29,31 @@ class StuffrInfo(Base):
         return "<StuffrInfo creator_name='{}'>".format(self.creator_name)
 
 
-class Thing(Base):
+class User(BaseModel):
+    """Model for user data."""
+
+    name = db.Column(db.Unicode, nullable=False)
+    date_created = db.Column(db.DateTime, nullable=False,
+                             default=datetime.datetime.utcnow)
+    # Relationships
+    inventories = db.relationship('Inventory', backref='owner', lazy='dynamic')
+
+
+class Inventory(BaseModel):
+    """Model for a collection of things."""
+
+    name = db.Column(db.Unicode, nullable=False)
+    date_created = db.Column(db.DateTime, nullable=False,
+                             default=datetime.datetime.utcnow)
+    owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # Relationships
+    inventories = db.relationship('Thing', backref='inventory', lazy='dynamic')
+
+
+class Thing(BaseModel):
     """Model for generic thing data."""
 
-    __tablename__ = 'things'
-    name = db.Column(db.String, nullable=False)
+    name = db.Column(db.Unicode, nullable=False)
     date_created = db.Column(db.DateTime, nullable=False,
                              default=datetime.datetime.utcnow)
     date_modified = db.Column(db.DateTime, nullable=False,
@@ -42,15 +62,19 @@ class Thing(Base):
     date_deleted = db.Column(db.DateTime)
     description = db.Column(db.UnicodeText)
     notes = db.Column(db.UnicodeText)
+    inventory_id = db.Column(db.Integer, db.ForeignKey('inventory.id'),
+                             nullable=False)
 
     def as_dict(self):
         """Fix datetime columns before creating dict."""
         # SQLite does not keep timezone information, assume UTC
         if self.date_created.tzinfo is None:
-            self.date_created = self.date_created.replace(tzinfo=datetime.timezone.utc)
+            self.date_created = self.date_created.replace(
+                tzinfo=datetime.timezone.utc)
         if self.date_modified.tzinfo is None:
-            self.date_modified = self.date_modified.replace(tzinfo=datetime.timezone.utc)
-        return Base.as_dict(self)
+            self.date_modified = self.date_modified.replace(
+                tzinfo=datetime.timezone.utc)
+        return BaseModel.as_dict(self)
 
     def __repr__(self):
         """Basic Thing data as a string."""
