@@ -37,6 +37,7 @@ def setupdb():
     for thing_data in THING_DATA:
         thing = models.Thing(**thing_data)
         thing.inventory = inventory
+        print(thing_data)
         db.session.add(thing)
     db.session.commit()
     yield
@@ -99,11 +100,14 @@ def check_ignore_nonuser_fields(request_func, url, thing_id, expected_status):
 def test_get_things(client):
     """Test GETing Things."""
     # Prepare test data
+    inventory_id = models.Inventory.query.first().id
     expected_response = []
     for thing in THING_DATA:
+        # Insert inventory ID for tests
         expected_thing = thing.copy()
         expected_thing['date_created'] = thing['date_created'].isoformat()
         expected_thing['date_modified'] = thing['date_modified'].isoformat()
+        expected_thing['inventory_id'] = inventory_id
         expected_response.append(expected_thing)
     url = url_for('stuffrapi.get_things')
 

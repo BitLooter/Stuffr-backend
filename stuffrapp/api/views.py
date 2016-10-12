@@ -86,7 +86,8 @@ NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
 # Fields sent to the client
 CLIENT_ENTITIES = {models.Thing.id, models.Thing.name,
                    models.Thing.date_created, models.Thing.date_modified,
-                   models.Thing.description, models.Thing.notes}
+                   models.Thing.description, models.Thing.notes,
+                   models.Thing.inventory_id}
 # Fields client is allowed to modify
 USER_ENTITIES = {models.Thing.name,
                  models.Thing.description, models.Thing.notes}
@@ -126,6 +127,7 @@ def post_thing():
     if error_message:
         return error_response(error_message)
     # New things require certain fields
+    # TODO: inventory_id will be required once they are implemented
     if not REQUIRED_FIELDS.issubset(request_data):
         missing_fields = [f for f in REQUIRED_FIELDS
                           if f not in request_data]
