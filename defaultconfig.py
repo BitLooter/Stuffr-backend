@@ -13,6 +13,7 @@ SERVER_DEBUG_PORT = 5000
 # Default database information
 SQLALCHEMY_DATABASE_URI = 'sqlite://'   # No path makes a memory database
 SQLALCHEMY_TRACK_MODIFICATIONS = False
-CREATE_TABLES = False       # Normally handled by Alembic
+# Normally handled by Alembic
+CREATE_TABLES = False
 # Set False if you need to create app without seeding database, e.g. testing
 INITIALIZE_DATABASE = True

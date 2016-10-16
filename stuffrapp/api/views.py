@@ -168,7 +168,6 @@ def update_thing(thing_id):
         )
     thing.update(update_thing_data)
     db.session.commit()
-    # TODO: Handle updating a nonexistant item (error?)
     return NO_CONTENT
 
 
