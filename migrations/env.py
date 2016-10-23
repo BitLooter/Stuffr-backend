@@ -1,3 +1,5 @@
+"""Environment file for Alembic migrations."""
+
 from __future__ import with_statement
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -54,7 +56,6 @@ def run_migrations_online():
     and associate a connection with the context.
 
     """
-
     # this callback is used to prevent an auto-migration from being generated
     # when there are no changes to the schema
     # reference: http://alembic.readthedocs.org/en/latest/cookbook.html

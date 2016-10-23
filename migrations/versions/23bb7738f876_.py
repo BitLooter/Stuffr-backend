@@ -34,8 +34,8 @@ def upgrade():
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.Unicode(), nullable=False),
         sa.Column('date_created', sa.DateTime(), nullable=False),
-        sa.Column('owner_id', sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(['owner_id'], ['user.id'], ),
+        sa.Column('user_id', sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(['user_id'], ['user.id'], name='fk_inventory_user'),
         sa.PrimaryKeyConstraint('id')
     )
     op.create_table(

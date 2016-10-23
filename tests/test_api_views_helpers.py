@@ -4,7 +4,7 @@ import datetime
 from http import HTTPStatus
 import pytest
 
-from stuffrapp.api import views, models
+from stuffrapp.api import views
 
 TEST_TIME = datetime.datetime(2011, 11, 11, 11, 11, 11,
                               tzinfo=datetime.timezone.utc)
@@ -57,18 +57,40 @@ def test_filter_user_fields():
     assert VALID_FIELDS == cleaned_thing.keys()
 
 
-def test_fix_thing_dict_times():
-    """Test function that sets times in thing data without offsets to UTC."""
-    test_thing = models.Thing()
+def test_fix_dict_datetimes():
+    """Test function that sets datetimes in a dict without offsets to UTC."""
     PST_OFFSET = -8
     PST_TIME = TEST_TIME.replace(tzinfo=datetime.timezone(
         datetime.timedelta(hours=PST_OFFSET)))
     NOTZ_TIME = TEST_TIME.replace(tzinfo=None)
-    test_thing.date_created = TEST_TIME
-    test_thing.date_modified = PST_TIME
-    test_thing.date_deleted = NOTZ_TIME
-    fixed_thing = views.fix_thing_dict_times(test_thing.as_dict())
-    assert fixed_thing['date_created'].tzinfo == datetime.timezone.utc
-    assert fixed_thing['date_modified'].tzinfo == datetime.timezone(
+    test_dict = {
+        'normal_time': TEST_TIME,
+        'pst_time': PST_TIME,
+        'notz_time': NOTZ_TIME,
+        'not_datetime': 4
+    }
+    fixed_thing = views.fix_dict_datetimes(test_dict)
+    assert fixed_thing['normal_time'].tzinfo == datetime.timezone.utc
+    assert fixed_thing['pst_time'].tzinfo == datetime.timezone(
         datetime.timedelta(hours=PST_OFFSET))
-    assert fixed_thing['date_deleted'].tzinfo is None
+    assert fixed_thing['notz_time'].tzinfo == datetime.timezone.utc
+    assert fixed_thing['not_datetime'] == 4
+
+
+def test_check_thing_request():
+    """Test function that does a sanity check of thing data input."""
+    # Test normal function
+    message = views.check_thing_request({'name': 'Test name'})
+    assert message is None
+
+    # Test empty dict
+    message = views.check_thing_request({})
+    assert message is None
+
+    # Test not a dict
+    message = views.check_thing_request([])
+    assert message is not None
+
+    # Test missing required fields
+    message = views.check_thing_request({'name': None})
+    assert message is not None

@@ -3,7 +3,9 @@
 import datetime
 from http import HTTPStatus
 import json
+from typing import Dict, Tuple
 from flask import request, Blueprint
+from sqlalchemy import exists
 
 from . import models
 from database import db
@@ -44,23 +46,21 @@ def error_response(message, status_code=HTTPStatus.BAD_REQUEST):
 
 def filter_user_fields(original_thing):
     """Return a dict that contains only the user fields from original_thing."""
-    return {k: original_thing[k] for k in original_thing if k in USER_COLS}
+    return {k: original_thing[k] for k in original_thing
+            if k in THING_USER_FIELDS}
 
 
-def fix_thing_dict_times(thing):
-    """Ensure datetimes have timezones in a Thing dict.
+def fix_dict_datetimes(the_dict):
+    """Ensure datetimes have timezones in a dict from SQLAlchemy.
 
     Necessary because some databases (e.g. SQLite) do not store timezone
     information. Stuffr uses UTC in the database, so this just adds the UTC
     timezone to the datetime fields.
     """
-    if thing['date_created'].tzinfo is None:
-        thing['date_created'] = thing['date_created'].replace(
-            tzinfo=datetime.timezone.utc)
-    if thing['date_modified'].tzinfo is None:
-        thing['date_modified'] = thing['date_modified'].replace(
-            tzinfo=datetime.timezone.utc)
-    return thing
+    for k, v in the_dict.items():
+        if type(v) is datetime.datetime and v.tzinfo is None:
+            the_dict[k] = v.replace(tzinfo=datetime.timezone.utc)
+    return the_dict
 
 
 def check_thing_request(request_data):
@@ -74,7 +74,7 @@ def check_thing_request(request_data):
         return error_response(message)
     # Required fields are not Non-nullable
     if not all(request_data[f] is not None for f in request_data
-               if f in REQUIRED_FIELDS):
+               if f in THING_REQUIRED_FIELDS):
         null_fields = [f for f in request_data if request_data[f] is None]
         return error_response(
             "Field(s) cannot be NULL: {}".format(', '.join(null_fields))
@@ -82,54 +82,94 @@ def check_thing_request(request_data):
     return message
 
 
+def check_inventory_exists(inventory_id: int) -> bool:
+    """Check that inventory_id is an actual inventory in the database."""
+    inventory_exists = db.session.query(
+        exists().where(models.Inventory.id == inventory_id)).scalar()
+    if not inventory_exists:
+        return 'No inventory with id {}'.format(inventory_id)
+
+
 NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
 # Fields sent to the client
-CLIENT_ENTITIES = {models.Thing.id, models.Thing.name,
-                   models.Thing.date_created, models.Thing.date_modified,
-                   models.Thing.description, models.Thing.notes,
-                   models.Thing.inventory_id}
+THING_CLIENT_ENTITIES = {
+    models.Thing.id, models.Thing.name,
+    models.Thing.date_created, models.Thing.date_modified,
+    models.Thing.date_deleted,
+    models.Thing.description, models.Thing.notes,
+    models.Thing.inventory_id}
+INVENTORY_CLIENT_ENTITIES = {
+    models.Inventory.id, models.Inventory.name, models.Inventory.user_id,
+    models.Inventory.date_created}
 # Fields client is allowed to modify
-USER_ENTITIES = {models.Thing.name,
-                 models.Thing.description, models.Thing.notes}
-USER_COLS = get_entity_names(USER_ENTITIES)
-# These fields are initialized by the server, not passed in from the client.
-SERVER_MANAGED_ENTITIES = {
+THING_USER_ENTITIES = {
+    models.Thing.name,
+    models.Thing.description, models.Thing.notes}
+THING_USER_FIELDS = get_entity_names(THING_USER_ENTITIES)
+# These fields are handled by the server and not passed in from the client.
+THING_MANAGED_ENTITIES = {
     models.Thing.id, models.Thing.date_created, models.Thing.date_modified}
-SERVER_MANAGED_COLS = get_entity_names(SERVER_MANAGED_ENTITIES)
+THING_MANAGED_FIELDS = get_entity_names(THING_MANAGED_ENTITIES)
 # Fields that must have data
-REQUIRED_FIELDS = {e.key for e in USER_ENTITIES if
-                   models.Thing.__table__.columns[e.key].nullable is False}
+THING_REQUIRED_FIELDS = {
+    e.key for e in THING_USER_ENTITIES
+    if models.Thing.__table__.columns[e.key].nullable is False and
+    e.key not in ('inventory_id')}
+
+ViewReturnType = Tuple[str, int, Dict[str, str]]
 
 
 # Routes
 #########
 
 
-@bp.route('/things')
-def get_things():
-    """Provide a list of things from the database."""
-    things = models.Thing.query.with_entities(*CLIENT_ENTITIES). \
-        filter(models.Thing.date_deleted == None).all()  # noqa: E711
+@bp.route('/inventories')
+def get_inventories() -> ViewReturnType:
+    """Provide a list of inventories from the database."""
+    # TODO: user filtering
+    user = models.User.query.first()
+    inventories = models.Inventory.query. \
+        with_entities(*INVENTORY_CLIENT_ENTITIES). \
+        filter_by(user_id=user.id).all()
     # SQLite does not keep timezone information, assume UTC
+    fixed_inventories = []
+    for inventory in inventories:
+        fixed_inventories.append(fix_dict_datetimes(inventory._asdict()))
+    return json_response(fixed_inventories)
+
+
+@bp.route('/inventories/<int:inventory_id>/things')
+def get_things(inventory_id: int=None) -> ViewReturnType:
+    """Provide a list of things from the database."""
+    # TODO: check user ID
+    error_message = check_inventory_exists(inventory_id)
+    if error_message:
+        return error_response(error_message, status_code=HTTPStatus.NOT_FOUND)
+    things = models.Thing.query.with_entities(*THING_CLIENT_ENTITIES). \
+        filter_by(date_deleted=None, inventory_id=inventory_id).all()
     fixed_things = []
     for thing in things:
-        fixed_things.append(fix_thing_dict_times(thing._asdict()))
+        # SQLite does not keep timezone information, assume UTC
+        fixed_things.append(fix_dict_datetimes(thing._asdict()))
     return json_response(fixed_things)
 
 
-@bp.route('/things', methods=['POST'])
-def post_thing():
+@bp.route('/inventories/<int:inventory_id>/things', methods=['POST'])
+def post_thing(inventory_id: int) -> ViewReturnType:
     """POST a thing to the database."""
     request_data = request.get_json()
 
     # Sanity check of data
+    # TODO: check user owns inventory
+    error_message = check_inventory_exists(inventory_id)
+    if error_message:
+        return error_response(error_message, status_code=HTTPStatus.NOT_FOUND)
     error_message = check_thing_request(request_data)
     if error_message:
         return error_response(error_message)
     # New things require certain fields
-    # TODO: inventory_id will be required once they are implemented
-    if not REQUIRED_FIELDS.issubset(request_data):
-        missing_fields = [f for f in REQUIRED_FIELDS
+    if not THING_REQUIRED_FIELDS.issubset(request_data):
+        missing_fields = [f for f in THING_REQUIRED_FIELDS
                           if f not in request_data]
         return error_response(
             "Required field(s) missing: {}".format(', '.join(missing_fields))
@@ -137,23 +177,27 @@ def post_thing():
     # Filter only desired fields
     new_thing_data = filter_user_fields(request_data)
 
-    thing = models.Thing(**new_thing_data)
+    thing = models.Thing(inventory_id=inventory_id, **new_thing_data)
     # TODO: Inventory will be specified by client
     inventory = models.Inventory.query.first()
     thing.inventory = inventory
     db.session.add(thing)
     db.session.commit()
     # TODO: Error handling - what if database is down?
-    initializedData = {k: thing.as_dict()[k] for k in SERVER_MANAGED_COLS}
+    initializedData = {k: thing.as_dict()[k] for k in THING_MANAGED_FIELDS}
     return json_response(initializedData, HTTPStatus.CREATED)
 
 
-@bp.route('/things/<int:thing_id>', methods=['PUT'])
-def update_thing(thing_id):
+@bp.route('/inventories/<int:inventory_id>/things/<int:thing_id>', methods=['PUT'])
+def update_thing(inventory_id: int, thing_id: int) -> ViewReturnType:
     """PUT (update) a thing in the database."""
     request_data = request.get_json()
 
     # Sanity check of data
+    # TODO: check user owns inventory
+    error_message = check_inventory_exists(inventory_id)
+    if error_message:
+        return error_response(error_message, status_code=HTTPStatus.NOT_FOUND)
     error_message = check_thing_request(request_data)
     if error_message:
         return error_response(error_message)
@@ -171,9 +215,12 @@ def update_thing(thing_id):
     return NO_CONTENT
 
 
-@bp.route('/things/<int:thing_id>', methods=['DELETE'])
-def delete_thing(thing_id):
+@bp.route('/inventories/<int:inventory_id>/things/<int:thing_id>', methods=['DELETE'])
+def delete_thing(inventory_id: int, thing_id: int) -> ViewReturnType:
     """DELETE a thing in the database."""
+    error_message = check_inventory_exists(inventory_id)
+    if error_message:
+        return error_response(error_message, status_code=HTTPStatus.NOT_FOUND)
     thing = models.Thing.query.get(thing_id)
     if thing is None:
         return error_response(

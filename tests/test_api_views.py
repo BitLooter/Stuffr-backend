@@ -11,34 +11,41 @@ from stuffrapp.api import models
 
 TEST_TIME = datetime.datetime(2011, 11, 11, 11, 11, 11,
                               tzinfo=datetime.timezone.utc)
-USER_DATA = [
-    {'name': 'testuser'}
-]
-INVENTORY_DATA = [
-    {'name': 'Test inventory'}
-]
-THING_DATA = [
-    {'name': 'thing1', 'date_created': TEST_TIME, 'date_modified': TEST_TIME,
-     'description': "Test Thing 1", 'notes': "For unit testing"},
-    {'name': 'thing2', 'date_created': TEST_TIME, 'date_modified': TEST_TIME,
-     'description': "Test Thing 2", 'notes': "For unit testing"}
-]
+# Generate test data
+TEST_DATA = []
+for u in range(2):
+    user_data = {'name': 'Test User U{}'.format(u), 'inventories': []}
+    for i in range(2):
+        inventory_data = {'name': 'Test Inventory I{}'.format(i), 'things': []}
+        for t in range(2):
+            ident = 'T{}'.format(t)
+            thing_data = {'name': 'Test Thing {}'.format(ident),
+                          'date_created': TEST_TIME,
+                          'date_modified': TEST_TIME,
+                          'description': '{} description'.format(ident),
+                          'notes': '{} notes'.format(ident)}
+            inventory_data['things'].append(thing_data)
+        user_data['inventories'].append(inventory_data)
+    TEST_DATA.append(user_data)
 
 
 @pytest.fixture(autouse=True)
 def setupdb():
     """Prepare the test database before use."""
     db.create_all()
-    user = models.User(**USER_DATA[0])
-    db.session.add(user)
-    inventory = models.Inventory(**INVENTORY_DATA[0])
-    inventory.owner = user
-    db.session.add(inventory)
-    for thing_data in THING_DATA:
-        thing = models.Thing(**thing_data)
-        thing.inventory = inventory
-        print(thing_data)
-        db.session.add(thing)
+    for user_data in TEST_DATA:
+        user_filtered = {k: user_data[k] for k in user_data
+                         if k != 'inventories'}
+        user = models.User(**user_filtered)
+        db.session.add(user)
+        for inventory_data in user_data['inventories']:
+            inventory_filtered = {k: inventory_data[k] for k in inventory_data
+                                  if k != 'things'}
+            inventory = models.Inventory(user=user, **inventory_filtered)
+            db.session.add(inventory)
+            for thing_data in inventory_data['things']:
+                thing = models.Thing(inventory=inventory, **thing_data)
+                db.session.add(thing)
     db.session.commit()
     yield
     db.session.remove()
@@ -97,19 +104,23 @@ def check_ignore_nonuser_fields(request_func, url, thing_id, expected_status):
 #############
 
 
-def test_get_things(client):
-    """Test GETing Things."""
+def test_get_inventories(client):
+    """Test GETing Inventories."""
+    # TODO: Finish implementing user auth
     # Prepare test data
-    inventory_id = models.Inventory.query.first().id
+    user_id = models.User.query.first().id
+    test_data = TEST_DATA[0]['inventories']
     expected_response = []
-    for thing in THING_DATA:
-        # Insert inventory ID for tests
-        expected_thing = thing.copy()
-        expected_thing['date_created'] = thing['date_created'].isoformat()
-        expected_thing['date_modified'] = thing['date_modified'].isoformat()
-        expected_thing['inventory_id'] = inventory_id
-        expected_response.append(expected_thing)
-    url = url_for('stuffrapi.get_things')
+    inventories = models.Inventory.query.filter_by(user_id=user_id).all()
+    for inventory in inventories:
+        if inventory.date_created.tzinfo is None:
+            inventory.date_created = inventory.date_created.replace(
+                tzinfo=datetime.timezone.utc)
+        expected_inventory = inventory.as_dict()
+        expected_inventory['date_created'] = \
+            expected_inventory['date_created'].isoformat()
+        expected_response.append(expected_inventory)
+    url = url_for('stuffrapi.get_inventories')
 
     response = client.get(url)
     assert response.status_code == HTTPStatus.OK
@@ -117,14 +128,59 @@ def test_get_things(client):
 
     response_data = response.json
     assert isinstance(response_data, list)
-    assert len(response_data) == len(THING_DATA)
+    assert len(response_data) == len(test_data)
+    # Verify the test data and only the test data is returned
+    for response_inventory in response_data:
+        assert response_inventory in expected_response
+        expected_response.remove(response_inventory)
+    assert expected_response == [], "Unknown inventories in database"
+
+
+def test_get_things(client):
+    """Test GETing Things."""
+    # Prepare test data
+    inventory_id = models.Inventory.query.first().id
+    expected_response = []
+    things = models.Thing.query.filter_by(inventory_id=inventory_id).all()
+    for thing in things:
+        if thing.date_created.tzinfo is None:
+            thing.date_created = thing.date_created.replace(
+                tzinfo=datetime.timezone.utc)
+        if thing.date_modified.tzinfo is None:
+            thing.date_modified = thing.date_modified.replace(
+                tzinfo=datetime.timezone.utc)
+        if thing.date_deleted is not None:
+            if thing.date_deleted.tzinfo is None:
+                thing.date_deleted = thing.date_deleted.replace(
+                    tzinfo=datetime.timezone.utc)
+        expected_thing = thing.as_dict()
+        expected_thing['date_created'] = \
+            expected_thing['date_created'].isoformat()
+        expected_thing['date_modified'] = \
+            expected_thing['date_modified'].isoformat()
+        expected_response.append(expected_thing)
+
+    url = url_for('stuffrapi.get_things', inventory_id=inventory_id)
+    response = client.get(url)
+    assert response.status_code == HTTPStatus.OK
+    assert response.headers['Content-Type'] == 'application/json'
+
+    response_data = response.json
+    assert isinstance(response_data, list)
+    assert len(response_data) == len(expected_response)
     # Verify the test data and only the test data is returned
     for response_thing in response_data:
-        assert response_thing['id'] is not None
-        del response_thing['id']
         assert response_thing in expected_response
         expected_response.remove(response_thing)
     assert expected_response == [], "Unknown things in database"
+
+    # Check getting things from nonexistant inventory
+    invalid_id = db.session.query(
+        db.func.max(models.Inventory.id)).scalar() + 1
+    url = url_for('stuffrapi.get_things', inventory_id=invalid_id)
+    response = client.get(url)
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.headers['Content-Type'] == 'application/json'
 
 
 def test_post_thing(client):
@@ -137,7 +193,7 @@ def test_post_thing(client):
         'inventory_id': inventory_id}
     response_fields = {'id', 'date_created', 'date_modified'}
     server_fields = {'date_deleted'}
-    things_url = url_for('stuffrapi.post_thing')
+    things_url = url_for('stuffrapi.post_thing', inventory_id=inventory_id)
 
     response = post_as_json(client.post, things_url, new_thing_data)
     assert response.status_code == HTTPStatus.CREATED
@@ -173,6 +229,13 @@ def test_post_thing(client):
     response = post_as_json(client.post, things_url, missing_field_thing)
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
+    # Nonexistant inventory
+    invalid_id = db.session.query(
+        db.func.max(models.Inventory.id)).scalar() + 1
+    invalid_url = url_for('stuffrapi.post_thing', inventory_id=invalid_id)
+    response = post_as_json(client.post, invalid_url, new_thing_data)
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
 
 def test_update_thing(client):
     """Test PUT (updating) a thing."""
@@ -182,7 +245,9 @@ def test_update_thing(client):
     expected_data['description'] = 'MODIFIED_DESC'
     expected_data['notes'] = 'MODIFIED_NOTES'
     thing_id = original_thing.id
-    thing_url = url_for('stuffrapi.update_thing', thing_id=thing_id)
+    thing_url = url_for('stuffrapi.update_thing',
+                        inventory_id=original_thing.inventory_id,
+                        thing_id=thing_id)
     modified_fields = {'name': expected_data['name'],
                        'description': expected_data['description'],
                        'notes': expected_data['notes']}
@@ -208,6 +273,7 @@ def test_update_thing(client):
     invalid_id = db.session.query(db.func.max(models.Thing.id)).scalar() + 1
     response = post_as_json(client.put,
                             url_for('stuffrapi.update_thing',
+                                    inventory_id=original_thing.inventory_id,
                                     thing_id=invalid_id),
                             invalid_id_thing)
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -215,11 +281,19 @@ def test_update_thing(client):
     # Check updating something that isn't a numerical ID
     # Using get_things because url_for checks type
     bad_id_thing = {'name': 'Should fail'}
-    response = post_as_json(client.put,
-                            url_for('stuffrapi.get_things') + '/notanid',
-                            bad_id_thing)
+    notint_url = url_for('stuffrapi.get_things',
+                         inventory_id=original_thing.inventory_id) + '/notanid'
+    response = post_as_json(client.put, notint_url, bad_id_thing)
     # Flask view looks for an int after /things, no view is set up for str
     assert response.status_code == HTTPStatus.METHOD_NOT_ALLOWED
+
+    # Nonexistant inventory
+    invalid_id = db.session.query(
+        db.func.max(models.Inventory.id)).scalar() + 1
+    invalid_url = url_for('stuffrapi.update_thing', inventory_id=invalid_id,
+                          thing_id=invalid_id)
+    response = post_as_json(client.put, invalid_url, modified_fields)
+    assert response.status_code == HTTPStatus.NOT_FOUND
 
 
 def test_delete_thing(client):
@@ -228,7 +302,8 @@ def test_delete_thing(client):
     id_list = [i[0] for i in id_list]
     thing_id = id_list[0]
     thing_to_delete = models.Thing.query.get(thing_id)
-    url = url_for('stuffrapi.delete_thing', thing_id=thing_id)
+    url = url_for('stuffrapi.delete_thing',
+                  inventory_id=thing_to_delete.inventory_id, thing_id=thing_id)
 
     response = client.delete(url)
     assert response.status_code == HTTPStatus.NO_CONTENT
@@ -237,20 +312,32 @@ def test_delete_thing(client):
     # Check deleting nonexistant item
     invalid_id = db.session.query(db.func.max(models.Thing.id)).scalar() + 1
     response = client.delete(url_for('stuffrapi.delete_thing',
+                                     inventory_id=thing_to_delete.inventory_id,
                                      thing_id=invalid_id))
     assert response.status_code == HTTPStatus.NOT_FOUND
 
     # Check deleting something that isn't a numerical ID
     # Using get_things because url_for checks type
-    response = client.delete(url_for('stuffrapi.get_things') + '/notanid')
+    notint_url = url_for('stuffrapi.get_things',
+                         inventory_id=thing_to_delete.inventory_id) + '/not_id'
+    response = client.delete(notint_url)
     # Flask view looks for an int after /things, no view is set up for str
     assert response.status_code == HTTPStatus.METHOD_NOT_ALLOWED
 
     # Check putting data in request
     data_thing_id = id_list[1]
     response = client.delete(url_for('stuffrapi.delete_thing',
+                                     inventory_id=thing_to_delete.inventory_id,
                                      thing_id=data_thing_id),
                              headers={'Content-Type': 'application/json'},
                              data='Data should be ignored')
     assert response.status_code == HTTPStatus.NO_CONTENT
     assert models.Thing.query.get(data_thing_id).date_deleted is not None
+
+    # Nonexistant inventory
+    invalid_id = db.session.query(
+        db.func.max(models.Inventory.id)).scalar() + 1
+    invalid_url = url_for('stuffrapi.update_thing', inventory_id=invalid_id,
+                          thing_id=invalid_id)
+    response = client.delete(invalid_url)
+    assert response.status_code == HTTPStatus.NOT_FOUND

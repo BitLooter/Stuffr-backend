@@ -36,7 +36,11 @@ class User(BaseModel):
     date_created = db.Column(db.DateTime, nullable=False,
                              default=datetime.datetime.utcnow)
     # Relationships
-    inventories = db.relationship('Inventory', backref='owner', lazy='dynamic')
+    inventories = db.relationship('Inventory', backref='user', lazy='dynamic')
+
+    def __repr__(self):
+        """Basic User data as a string."""
+        return "<User name='{}'>".format(self.name)
 
 
 class Inventory(BaseModel):
@@ -45,9 +49,13 @@ class Inventory(BaseModel):
     name = db.Column(db.Unicode, nullable=False)
     date_created = db.Column(db.DateTime, nullable=False,
                              default=datetime.datetime.utcnow)
-    owner_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     # Relationships
-    inventories = db.relationship('Thing', backref='inventory', lazy='dynamic')
+    things = db.relationship('Thing', backref='inventory', lazy='dynamic')
+
+    def __repr__(self):
+        """Basic Inventory data as a string."""
+        return "<Inventory name='{}'>".format(self.name)
 
 
 class Thing(BaseModel):

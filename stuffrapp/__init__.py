@@ -54,6 +54,6 @@ def initialize_database():
         db.session.add(default_user)
         default_inventory = models.Inventory(
             name='DEFAULT_INVENTORY',
-            owner=default_user)
+            user=default_user)
         db.session.add(default_inventory)
         db.session.commit()
