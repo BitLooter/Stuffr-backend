@@ -188,16 +188,16 @@ def post_thing(inventory_id: int) -> ViewReturnType:
     return json_response(initializedData, HTTPStatus.CREATED)
 
 
+@bp.route('/things/<int:thing_id>', methods=['PUT'])
 @bp.route('/inventories/<int:inventory_id>/things/<int:thing_id>', methods=['PUT'])
-def update_thing(inventory_id: int, thing_id: int) -> ViewReturnType:
-    """PUT (update) a thing in the database."""
+def update_thing(thing_id: int, inventory_id: int=None) -> ViewReturnType:
+    """PUT (update) a thing in the database.
+
+    inventory_id is ignored, only thing_id is needed.
+    """
     request_data = request.get_json()
 
     # Sanity check of data
-    # TODO: check user owns inventory
-    error_message = check_inventory_exists(inventory_id)
-    if error_message:
-        return error_response(error_message, status_code=HTTPStatus.NOT_FOUND)
     error_message = check_thing_request(request_data)
     if error_message:
         return error_response(error_message)
@@ -215,12 +215,13 @@ def update_thing(inventory_id: int, thing_id: int) -> ViewReturnType:
     return NO_CONTENT
 
 
+@bp.route('/things/<int:thing_id>', methods=['DELETE'])
 @bp.route('/inventories/<int:inventory_id>/things/<int:thing_id>', methods=['DELETE'])
-def delete_thing(inventory_id: int, thing_id: int) -> ViewReturnType:
-    """DELETE a thing in the database."""
-    error_message = check_inventory_exists(inventory_id)
-    if error_message:
-        return error_response(error_message, status_code=HTTPStatus.NOT_FOUND)
+def delete_thing(thing_id: int, inventory_id: int=None) -> ViewReturnType:
+    """DELETE a thing in the database.
+
+    inventory_id is ignored, only thing_id is needed.
+    """
     thing = models.Thing.query.get(thing_id)
     if thing is None:
         return error_response(

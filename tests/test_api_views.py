@@ -287,14 +287,6 @@ def test_update_thing(client):
     # Flask view looks for an int after /things, no view is set up for str
     assert response.status_code == HTTPStatus.METHOD_NOT_ALLOWED
 
-    # Nonexistant inventory
-    invalid_id = db.session.query(
-        db.func.max(models.Inventory.id)).scalar() + 1
-    invalid_url = url_for('stuffrapi.update_thing', inventory_id=invalid_id,
-                          thing_id=invalid_id)
-    response = post_as_json(client.put, invalid_url, modified_fields)
-    assert response.status_code == HTTPStatus.NOT_FOUND
-
 
 def test_delete_thing(client):
     """Test DELETE a thing."""
@@ -333,11 +325,3 @@ def test_delete_thing(client):
                              data='Data should be ignored')
     assert response.status_code == HTTPStatus.NO_CONTENT
     assert models.Thing.query.get(data_thing_id).date_deleted is not None
-
-    # Nonexistant inventory
-    invalid_id = db.session.query(
-        db.func.max(models.Inventory.id)).scalar() + 1
-    invalid_url = url_for('stuffrapi.update_thing', inventory_id=invalid_id,
-                          thing_id=invalid_id)
-    response = client.delete(invalid_url)
-    assert response.status_code == HTTPStatus.NOT_FOUND
