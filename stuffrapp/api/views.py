@@ -3,7 +3,7 @@
 import datetime
 from http import HTTPStatus
 import json
-from typing import Dict, Tuple
+from typing import Any, Dict, Mapping, Optional, Sequence, Set, Tuple
 from flask import request, Blueprint
 from sqlalchemy import exists
 
@@ -12,20 +12,22 @@ from database import db
 
 bp = Blueprint('stuffrapi', __name__)
 
+ViewReturnType = Tuple[str, int, Dict[str, str]]
+
 
 @bp.errorhandler(HTTPStatus.BAD_REQUEST)
-def defaulthandler(e):
+def defaulthandler(e: Exception):
     """Default exception handler to return JSON instead of HTML."""
     json_data = {'message': '{}: {}'.format(e.name, e.description)},
     return json_response(json_data, status_code=e.code)
 
 
-def get_entity_names(entities):
-    """Return a list containing the column names of all given entities."""
+def get_entity_names(entities: Sequence) -> Set:
+    """Return the column names of all given entities."""
     return {c.key for c in entities}
 
 
-def serialize_object(obj):
+def serialize_object(obj: Any) -> str:
     """Convert unserializable types for JSON encoding."""
     if isinstance(obj, datetime.datetime):
         return obj.isoformat()
@@ -33,24 +35,24 @@ def serialize_object(obj):
         raise TypeError("JSON: Cannot serialize {}".format(type(obj)))
 
 
-def json_response(data, status_code=HTTPStatus.OK):
+def json_response(data: Any, status_code: int=HTTPStatus.OK) -> ViewReturnType:
     """Create a response object suitable for JSON data."""
     json_data = json.dumps(data, default=serialize_object)
     return json_data, status_code, {'Content-Type': 'application/json'}
 
 
-def error_response(message, status_code=HTTPStatus.BAD_REQUEST):
+def error_response(message: str, status_code: int=HTTPStatus.BAD_REQUEST) -> ViewReturnType:
     """Create a response object for errors."""
     return json_response({'message': message}, status_code=status_code)
 
 
-def filter_user_fields(original_thing):
+def filter_user_fields(original_thing: Mapping) -> Dict:
     """Return a dict that contains only the user fields from original_thing."""
     return {k: original_thing[k] for k in original_thing
             if k in THING_USER_FIELDS}
 
 
-def fix_dict_datetimes(the_dict):
+def fix_dict_datetimes(the_dict: Mapping) -> Dict:
     """Ensure datetimes have timezones in a dict from SQLAlchemy.
 
     Necessary because some databases (e.g. SQLite) do not store timezone
@@ -63,10 +65,10 @@ def fix_dict_datetimes(the_dict):
     return the_dict
 
 
-def check_thing_request(request_data):
+def check_thing_request(request_data: Mapping) -> Optional[ViewReturnType]:
     """Perform common checks against thing request data."""
-    message = None
     if type(request_data) != dict:
+        message = None
         if request_data is None:
             message = 'No data or NULL passed as data'
         else:
@@ -79,7 +81,6 @@ def check_thing_request(request_data):
         return error_response(
             "Field(s) cannot be NULL: {}".format(', '.join(null_fields))
         )
-    return message
 
 
 def check_inventory_exists(inventory_id: int) -> bool:
@@ -115,8 +116,6 @@ THING_REQUIRED_FIELDS = {
     e.key for e in THING_USER_ENTITIES
     if models.Thing.__table__.columns[e.key].nullable is False and
     e.key not in ('inventory_id')}
-
-ViewReturnType = Tuple[str, int, Dict[str, str]]
 
 
 # Routes
