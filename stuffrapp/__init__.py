@@ -1,5 +1,6 @@
 """Main file for Stuffr's backend."""
 
+from typing import Mapping
 from flask import Flask
 from sqlalchemy.orm.exc import MultipleResultsFound
 
@@ -7,8 +8,10 @@ from database import db
 from .api.views import models
 from .api.views import bp as blueprint_api
 
+logger = None
 
-def create_app(config_override={}):
+
+def create_app(config_override: Mapping={}) -> Flask:
     """Create the flask app for the debug server.
 
     Parameters:
@@ -23,6 +26,8 @@ def create_app(config_override={}):
     app.config.from_object('defaultconfig')
     app.config.from_pyfile('debugconfig.py', silent=True)
     app.config.from_mapping(config_override)
+    global logger
+    logger = app.logger
 
     db.init_app(app)
     # TODO: Better initial setup
@@ -39,21 +44,34 @@ def create_app(config_override={}):
 
 def initialize_database():
     """Set up the database with default data."""
+    # TODO: make sure you test this after you get the server working against
     try:
-        db_info = models.StuffrInfo.query.one_or_none()
+        db_info = models.DatabaseInfo.query.one_or_none()
     except MultipleResultsFound as e:
+        logger.error(
+            'Multiple DatabaseInfo entries found. This shouldn\'t happen.')
         # TODO: Handle this error
         raise e
 
-    # If `None` database had not been initialized
+    # If no DatabaseInfo table, database has not been initialized
     if not db_info:
-        info = models.StuffrInfo(creator_name='Stuffr')
+        logger.info('Performing first-time database initialization...')
+        info = models.DatabaseInfo(creator_name='Stuffr', creator_version='alpha')
         db.session.add(info)
 
-        default_user = models.User(name='DEFAULT_USER')
-        db.session.add(default_user)
-        default_inventory = models.Inventory(
-            name='DEFAULT_INVENTORY',
-            user=default_user)
-        db.session.add(default_inventory)
-        db.session.commit()
+        initialize_user('default@example.com', 'password', 'DEFAULT', 'USER')
+        initialize_user('default2@example.com', 'password', 'TEST', 'USER2')
+
+
+def initialize_user(email: str, password: str, first_name: str, last_name: str):
+    """Initial setup for a new user."""
+    logger.info('Creating new user {}'.format(email))
+    default_user = models.User(name_first=first_name, name_last=last_name,
+                               email=email, password=password)
+    db.session.add(default_user)
+    default_inventory = models.Inventory(
+        # TODO: Adapt for missing first name, possesive when ends with S
+        name='{}\'s stuff'.format(first_name),
+        user=default_user)
+    db.session.add(default_inventory)
+    db.session.commit()

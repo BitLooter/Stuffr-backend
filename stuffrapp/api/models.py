@@ -5,6 +5,9 @@ import sqlalchemy
 
 from database import db
 
+# TODO: Increment this once the database layout settles down
+DATABASE_VERSION = 0
+
 
 class BaseModel(db.Model):
     """Base class for all models."""
@@ -19,28 +22,56 @@ class BaseModel(db.Model):
                 for c in sqlalchemy.inspect(self).mapper.column_attrs}
 
 
-class StuffrInfo(BaseModel):
+class DatabaseInfo(BaseModel):
     """Model for database metadata."""
 
     creator_name = db.Column(db.Unicode, nullable=False)
+    creator_version = db.Column(db.Unicode, nullable=False)
+    date_created = db.Column(db.DateTime, nullable=False,
+                             default=datetime.datetime.utcnow)
+    # Database schema version - value incremented when a breaking change is made
+    database_version = db.Column(db.Integer, nullable=False,
+                                 default=DATABASE_VERSION)
 
     def __repr__(self):
-        """Basic StuffrInfo data as a string."""
-        return "<StuffrInfo creator_name='{}'>".format(self.creator_name)
+        """Basic DatabaseInfo data as a string."""
+        return "<DatabaseInfo creator_name='{}'>".format(self.creator_name)
 
 
 class User(BaseModel):
     """Model for user data."""
 
-    name = db.Column(db.Unicode, nullable=False)
+    # Email is used for the username
+    email = db.Column(db.Unicode, nullable=False)
+    password = db.Column(db.Unicode, nullable=False)
+    name_first = db.Column(db.Unicode, nullable=False)
+    name_last = db.Column(db.Unicode, nullable=False)
     date_created = db.Column(db.DateTime, nullable=False,
                              default=datetime.datetime.utcnow)
+    active = db.Column(db.Boolean)
+    confirmed_at = db.Column(db.DateTime)
+    last_login_at = db.Column(db.DateTime)
+    current_login_at = db.Column(db.DateTime)
+    last_login_ip = db.Column(db.Unicode)
+    current_login_ip = db.Column(db.Unicode)
+    login_count = db.Column(db.Integer)
     # Relationships
     inventories = db.relationship('Inventory', backref='user', lazy='dynamic')
 
     def __repr__(self):
         """Basic User data as a string."""
-        return "<User name='{}'>".format(self.name)
+        return "<User email='{}'>".format(self.email)
+
+
+class Role(BaseModel):
+    """Role for a user."""
+
+    name = db.Column(db.Unicode, nullable=False)
+    description = db.Column(db.Unicode)
+
+    def __repr__(self):
+        """Basic Role data as a string."""
+        return "<Role name='{}'>".format(self.email)
 
 
 class Inventory(BaseModel):
@@ -49,8 +80,8 @@ class Inventory(BaseModel):
     name = db.Column(db.Unicode, nullable=False)
     date_created = db.Column(db.DateTime, nullable=False,
                              default=datetime.datetime.utcnow)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     # Relationships
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     things = db.relationship('Thing', backref='inventory', lazy='dynamic')
 
     def __repr__(self):
@@ -70,6 +101,7 @@ class Thing(BaseModel):
     date_deleted = db.Column(db.DateTime)
     description = db.Column(db.UnicodeText)
     notes = db.Column(db.UnicodeText)
+    # Relationships
     inventory_id = db.Column(db.Integer, db.ForeignKey('inventory.id'),
                              nullable=False)
 
