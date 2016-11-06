@@ -1,14 +1,24 @@
 """Main file for Stuffr's backend."""
 
 from typing import Mapping
+from http import HTTPStatus
 from flask import Flask
 from sqlalchemy.orm.exc import MultipleResultsFound
+from flask_security import Security, SQLAlchemyUserDatastore
 
 from database import db
 from .api.views import models
-from .api.views import bp as blueprint_api
+from .api.views import bp as blueprint_api, error_response
 
 logger = None
+user_store = SQLAlchemyUserDatastore(db, models.User, models.Role)
+
+
+def api_unauthorized():
+    """Response handler for unauthenticated requests to protected API calls."""
+    logger.warning('Unauthenticated request')
+    return error_response('You must be logged in to access this resource',
+                          status_code=HTTPStatus.UNAUTHORIZED)
 
 
 def create_app(config_override: Mapping={}) -> Flask:
@@ -30,6 +40,8 @@ def create_app(config_override: Mapping={}) -> Flask:
     logger = app.logger
 
     db.init_app(app)
+    Security(app, user_store)
+    app.login_manager.unauthorized_handler(api_unauthorized)
     # TODO: Better initial setup
     with app.app_context():
         if app.config['CREATE_TABLES']:
@@ -59,16 +71,16 @@ def initialize_database():
         info = models.DatabaseInfo(creator_name='Stuffr', creator_version='alpha')
         db.session.add(info)
 
-        initialize_user('default@example.com', 'password', 'DEFAULT', 'USER')
-        initialize_user('default2@example.com', 'password', 'TEST', 'USER2')
+        create_new_user('default@example.com', 'password', 'DEFAULT', 'USER')
+        create_new_user('default2@example.com', 'password', 'TEST', 'USER2')
 
 
-def initialize_user(email: str, password: str, first_name: str, last_name: str):
+def create_new_user(email: str, password: str, first_name: str, last_name: str):
     """Initial setup for a new user."""
     logger.info('Creating new user {}'.format(email))
-    default_user = models.User(name_first=first_name, name_last=last_name,
-                               email=email, password=password)
-    db.session.add(default_user)
+    default_user = user_store.create_user(
+        email=email, password=password,
+        name_first=first_name, name_last=last_name)
     default_inventory = models.Inventory(
         # TODO: Adapt for missing first name, possesive when ends with S
         name='{}\'s stuff'.format(first_name),

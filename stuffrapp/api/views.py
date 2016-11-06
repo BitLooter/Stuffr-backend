@@ -6,6 +6,8 @@ import json
 from typing import Any, Dict, Mapping, Optional, Sequence, Set, Tuple
 from flask import request, Blueprint
 from sqlalchemy import exists
+from flask_security import login_required, current_user
+from flask_security.utils import login_user, logout_user
 
 from . import models
 from database import db
@@ -38,7 +40,12 @@ def serialize_object(obj: Any) -> str:
 def json_response(data: Any, status_code: int=HTTPStatus.OK) -> ViewReturnType:
     """Create a response object suitable for JSON data."""
     json_data = json.dumps(data, default=serialize_object)
-    return json_data, status_code, {'Content-Type': 'application/json'}
+    if status_code == HTTPStatus.UNAUTHORIZED:
+        headers = {'Content-Type': 'application/json',
+                   'WWW-Authenticate': 'FormBased'}
+    else:
+        headers = {'Content-Type': 'application/json'}
+    return json_data, status_code, headers
 
 
 def error_response(message: str, status_code: int=HTTPStatus.BAD_REQUEST) -> ViewReturnType:
@@ -122,7 +129,47 @@ THING_REQUIRED_FIELDS = {
 #########
 
 
+@bp.route('/logintest')
+def login_test():
+    """Display login debug info."""
+    if current_user.is_authenticated:
+        info = '\n'.join((
+            'is_authenticated: ' + str(current_user.is_authenticated),
+            'email: ' + current_user.email
+        ))
+    else:
+        info = '\n'.join((
+            'is_authenticated: ' + str(current_user.is_authenticated),
+        ))
+    return info
+
+
+@bp.route('/login1')
+def login1():
+    """Test autologin."""
+    user = models.User.query.filter_by(email='default@example.com').first()
+    if login_user(user, remember=True):
+        return 'Logged in ' + current_user.email
+    else:
+        return 'Unable to login'
+
+
+@bp.route('/login2')
+def login2():
+    """Test autologin."""
+    login_user('default2@example.com')
+    return 'Logged in ' + current_user.email
+
+
+@bp.route('/logout')
+def logout():
+    """Log the current user out."""
+    logout_user()
+    return 'Logged out'
+
+
 @bp.route('/inventories')
+@login_required
 def get_inventories() -> ViewReturnType:
     """Provide a list of inventories from the database."""
     # TODO: user filtering
@@ -138,12 +185,17 @@ def get_inventories() -> ViewReturnType:
 
 
 @bp.route('/inventories/<int:inventory_id>/things')
+@login_required
 def get_things(inventory_id: int=None) -> ViewReturnType:
     """Provide a list of things from the database."""
-    # TODO: check user ID
     error_message = check_inventory_exists(inventory_id)
     if error_message:
         return error_response(error_message, status_code=HTTPStatus.NOT_FOUND)
+    # Check that current user owns inventory
+    if current_user != models.Inventory.query.get(inventory_id).user:
+        return error_response('Inventory does not belong to user',
+                              status_code=HTTPStatus.FORBIDDEN)
+
     things = models.Thing.query.with_entities(*THING_CLIENT_ENTITIES). \
         filter_by(date_deleted=None, inventory_id=inventory_id).all()
     fixed_things = []
@@ -154,18 +206,23 @@ def get_things(inventory_id: int=None) -> ViewReturnType:
 
 
 @bp.route('/inventories/<int:inventory_id>/things', methods=['POST'])
+@login_required
 def post_thing(inventory_id: int) -> ViewReturnType:
     """POST a thing to the database."""
     request_data = request.get_json()
 
     # Sanity check of data
-    # TODO: check user owns inventory
     error_message = check_inventory_exists(inventory_id)
     if error_message:
         return error_response(error_message, status_code=HTTPStatus.NOT_FOUND)
     error_message = check_thing_request(request_data)
     if error_message:
         return error_response(error_message)
+    # Check that current user owns inventory
+    inventory = models.Inventory.query.get(inventory_id)
+    if current_user != inventory.user:
+        return error_response('Inventory does not belong to user',
+                              status_code=HTTPStatus.FORBIDDEN)
     # New things require certain fields
     if not THING_REQUIRED_FIELDS.issubset(request_data):
         missing_fields = [f for f in THING_REQUIRED_FIELDS
@@ -177,9 +234,6 @@ def post_thing(inventory_id: int) -> ViewReturnType:
     new_thing_data = filter_user_fields(request_data)
 
     thing = models.Thing(inventory_id=inventory_id, **new_thing_data)
-    # TODO: Inventory will be specified by client
-    inventory = models.Inventory.query.first()
-    thing.inventory = inventory
     db.session.add(thing)
     db.session.commit()
     # TODO: Error handling - what if database is down?
@@ -189,6 +243,7 @@ def post_thing(inventory_id: int) -> ViewReturnType:
 
 @bp.route('/things/<int:thing_id>', methods=['PUT'])
 @bp.route('/inventories/<int:inventory_id>/things/<int:thing_id>', methods=['PUT'])
+@login_required
 def update_thing(thing_id: int, inventory_id: int=None) -> ViewReturnType:
     """PUT (update) a thing in the database.
 
@@ -200,33 +255,46 @@ def update_thing(thing_id: int, inventory_id: int=None) -> ViewReturnType:
     error_message = check_thing_request(request_data)
     if error_message:
         return error_response(error_message)
+
+    thing_query = models.Thing.query.filter_by(id=thing_id)
+    thing = thing_query.one_or_none()
+    if not thing:
+        # No thing with this ID
+        return error_response('No thing with id {}'.format(thing_id),
+                              status_code=HTTPStatus.NOT_FOUND)
+    else:
+        # If user does not own containing inventory
+        if thing.inventory.user != current_user:
+            return error_response('Inventory does not belong to user',
+                                  status_code=HTTPStatus.FORBIDDEN)
+
     # Filter only desired fields
     update_thing_data = filter_user_fields(request_data)
 
-    thing = models.Thing.query.filter_by(id=thing_id)
-    if thing.one_or_none() is None:
-        return error_response(
-            'No thing with id {}'.format(thing_id),
-            status_code=HTTPStatus.NOT_FOUND
-        )
-    thing.update(update_thing_data)
+    thing_query.update(update_thing_data)
     db.session.commit()
     return NO_CONTENT
 
 
 @bp.route('/things/<int:thing_id>', methods=['DELETE'])
 @bp.route('/inventories/<int:inventory_id>/things/<int:thing_id>', methods=['DELETE'])
+@login_required
 def delete_thing(thing_id: int, inventory_id: int=None) -> ViewReturnType:
     """DELETE a thing in the database.
 
     inventory_id is ignored, only thing_id is needed.
     """
-    thing = models.Thing.query.get(thing_id)
-    if thing is None:
-        return error_response(
-            'No thing with id {}'.format(thing_id),
-            status_code=HTTPStatus.NOT_FOUND
-        )
+    thing = models.Thing.query.filter_by(id=thing_id).one_or_none()
+    if not thing:
+        # No thing with this ID
+        return error_response('No thing with id {}'.format(thing_id),
+                              status_code=HTTPStatus.NOT_FOUND)
+    else:
+        # If user does not own containing inventory
+        if thing.inventory.user != current_user:
+            return error_response('Inventory does not belong to user',
+                                  status_code=HTTPStatus.FORBIDDEN)
+
     thing.date_deleted = datetime.datetime.utcnow()
     db.session.commit()
     return NO_CONTENT

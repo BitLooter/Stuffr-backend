@@ -2,6 +2,7 @@
 
 import datetime
 import sqlalchemy
+import flask_security
 
 from database import db
 
@@ -38,14 +39,20 @@ class DatabaseInfo(BaseModel):
         return "<DatabaseInfo creator_name='{}'>".format(self.creator_name)
 
 
-class User(BaseModel):
+roles_users = db.Table(
+    'roles_users',
+    db.Column('user_id', db.Integer(), db.ForeignKey('user.id'), nullable=False),
+    db.Column('role_id', db.Integer(), db.ForeignKey('role.id'), nullable=False))
+
+
+class User(BaseModel, flask_security.UserMixin):
     """Model for user data."""
 
     # Email is used for the username
     email = db.Column(db.Unicode, nullable=False)
     password = db.Column(db.Unicode, nullable=False)
-    name_first = db.Column(db.Unicode, nullable=False)
-    name_last = db.Column(db.Unicode, nullable=False)
+    name_first = db.Column(db.Unicode, nullable=False, default='FN')
+    name_last = db.Column(db.Unicode, nullable=False, default='LN')
     date_created = db.Column(db.DateTime, nullable=False,
                              default=datetime.datetime.utcnow)
     active = db.Column(db.Boolean)
@@ -57,13 +64,15 @@ class User(BaseModel):
     login_count = db.Column(db.Integer)
     # Relationships
     inventories = db.relationship('Inventory', backref='user', lazy='dynamic')
+    roles = db.relationship('Role', secondary=roles_users,
+                            backref=db.backref('users', lazy='dynamic'))
 
     def __repr__(self):
         """Basic User data as a string."""
         return "<User email='{}'>".format(self.email)
 
 
-class Role(BaseModel):
+class Role(BaseModel, flask_security.RoleMixin):
     """Role for a user."""
 
     name = db.Column(db.Unicode, nullable=False)
