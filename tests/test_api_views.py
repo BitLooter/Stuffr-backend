@@ -181,6 +181,31 @@ class ThingPostMixin:
         assert modified_thing.date_deleted is None
 
 
+class TestGetUserInfo(CommonTests):
+    """Tests for getting user info."""
+
+    view_name = 'stuffrapi.get_userinfo'
+    method = 'get'
+
+    def test_get_userinfo(self, authenticated_client):
+        """Test GETing UserInfo."""
+        # Prepare test data
+        for user_data in TEST_DATA:
+            if user_data['email'] == authenticated_client.user.email:
+                expected_response = user_data.copy()
+                del expected_response['inventories']
+                expected_response['id'] = authenticated_client.user.id
+        url = url_for(self.view_name)
+
+        response = authenticated_client.get(url)
+        assert response.status_code == HTTPStatus.OK
+        assert response.headers['Content-Type'] == 'application/json'
+
+        response_data = response.json
+        assert isinstance(response_data, dict)
+        assert response_data == expected_response
+
+
 class TestGetInventories(CommonTests):
     """Tests for getting inventories."""
 
