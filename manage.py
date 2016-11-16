@@ -33,7 +33,7 @@ def runserver():
         return render_template('index.html')
 
     debug_app.run(debug_app.config['SERVER_DEBUG_HOST'],
-                   debug_app.config['SERVER_DEBUG_PORT'])
+                  debug_app.config['SERVER_DEBUG_PORT'])
 
 
 if __name__ == "__main__":
