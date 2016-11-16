@@ -6,8 +6,8 @@ import json
 from typing import Any, Dict, Mapping, Optional, Sequence, Set, Tuple
 from flask import request, Blueprint
 from sqlalchemy import exists
-from flask_security import login_required, current_user
-from flask_security.utils import login_user, logout_user
+from flask_security import current_user
+from flask_security.decorators import auth_token_required
 
 from . import models
 from database import db
@@ -100,15 +100,19 @@ def check_inventory_exists(inventory_id: int) -> bool:
 
 NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
 # Fields sent to the client
+USER_CLIENT_ENTITIES = {
+    models.User.id, models.User.email, models.User.password,
+    models.User.name_first, models.User.name_last}
+USER_CLIENT_FIELDS = get_entity_names(USER_CLIENT_ENTITIES)
+INVENTORY_CLIENT_ENTITIES = {
+    models.Inventory.id, models.Inventory.name, models.Inventory.user_id,
+    models.Inventory.date_created}
 THING_CLIENT_ENTITIES = {
     models.Thing.id, models.Thing.name,
     models.Thing.date_created, models.Thing.date_modified,
     models.Thing.date_deleted,
     models.Thing.description, models.Thing.notes,
     models.Thing.inventory_id}
-INVENTORY_CLIENT_ENTITIES = {
-    models.Inventory.id, models.Inventory.name, models.Inventory.user_id,
-    models.Inventory.date_created}
 # Fields client is allowed to modify
 THING_USER_ENTITIES = {
     models.Thing.name,
@@ -128,55 +132,25 @@ THING_REQUIRED_FIELDS = {
 # Routes
 #########
 
+# TODO: Default 404 error view
 
-@bp.route('/logintest')
-def login_test():
-    """Display login debug info."""
-    if current_user.is_authenticated:
-        info = '\n'.join((
-            'is_authenticated: ' + str(current_user.is_authenticated),
-            'email: ' + current_user.email
-        ))
-    else:
-        info = '\n'.join((
-            'is_authenticated: ' + str(current_user.is_authenticated),
-        ))
-    return info
-
-
-@bp.route('/login1')
-def login1():
-    """Test autologin."""
-    user = models.User.query.filter_by(email='default@example.com').first()
-    if login_user(user, remember=True):
-        return 'Logged in ' + current_user.email
-    else:
-        return 'Unable to login'
-
-
-@bp.route('/login2')
-def login2():
-    """Test autologin."""
-    login_user('default2@example.com')
-    return 'Logged in ' + current_user.email
-
-
-@bp.route('/logout')
-def logout():
-    """Log the current user out."""
-    logout_user()
-    return 'Logged out'
+@bp.route('/userinfo')
+@auth_token_required
+def get_userinfo() -> ViewReturnType:
+    """Provide information about the current user."""
+    user_dict = current_user.as_dict()
+    filtered_user = {k: user_dict[k] for k in user_dict
+                     if k in USER_CLIENT_FIELDS}
+    return json_response(filtered_user)
 
 
 @bp.route('/inventories')
-@login_required
+@auth_token_required
 def get_inventories() -> ViewReturnType:
     """Provide a list of inventories from the database."""
-    # TODO: user filtering
-    user = models.User.query.first()
     inventories = models.Inventory.query. \
         with_entities(*INVENTORY_CLIENT_ENTITIES). \
-        filter_by(user_id=user.id).all()
+        filter_by(user_id=current_user.id).all()
     # SQLite does not keep timezone information, assume UTC
     fixed_inventories = []
     for inventory in inventories:
@@ -185,7 +159,7 @@ def get_inventories() -> ViewReturnType:
 
 
 @bp.route('/inventories/<int:inventory_id>/things')
-@login_required
+@auth_token_required
 def get_things(inventory_id: int=None) -> ViewReturnType:
     """Provide a list of things from the database."""
     error_message = check_inventory_exists(inventory_id)
@@ -206,7 +180,7 @@ def get_things(inventory_id: int=None) -> ViewReturnType:
 
 
 @bp.route('/inventories/<int:inventory_id>/things', methods=['POST'])
-@login_required
+@auth_token_required
 def post_thing(inventory_id: int) -> ViewReturnType:
     """POST a thing to the database."""
     request_data = request.get_json()
@@ -243,7 +217,7 @@ def post_thing(inventory_id: int) -> ViewReturnType:
 
 @bp.route('/things/<int:thing_id>', methods=['PUT'])
 @bp.route('/inventories/<int:inventory_id>/things/<int:thing_id>', methods=['PUT'])
-@login_required
+@auth_token_required
 def update_thing(thing_id: int, inventory_id: int=None) -> ViewReturnType:
     """PUT (update) a thing in the database.
 
@@ -278,7 +252,7 @@ def update_thing(thing_id: int, inventory_id: int=None) -> ViewReturnType:
 
 @bp.route('/things/<int:thing_id>', methods=['DELETE'])
 @bp.route('/inventories/<int:inventory_id>/things/<int:thing_id>', methods=['DELETE'])
-@login_required
+@auth_token_required
 def delete_thing(thing_id: int, inventory_id: int=None) -> ViewReturnType:
     """DELETE a thing in the database.
 

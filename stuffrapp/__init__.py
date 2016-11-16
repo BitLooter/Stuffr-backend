@@ -40,8 +40,8 @@ def create_app(config_override: Mapping={}) -> Flask:
     logger = app.logger
 
     db.init_app(app)
-    Security(app, user_store)
-    app.login_manager.unauthorized_handler(api_unauthorized)
+    security = Security(app, user_store)
+    security._state.unauthorized_handler(api_unauthorized)
     # TODO: Better initial setup
     with app.app_context():
         if app.config['CREATE_TABLES']:

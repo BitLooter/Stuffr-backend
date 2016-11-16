@@ -8,6 +8,7 @@ from flask import url_for
 
 from database import db
 from stuffrapp.api import models
+from stuffrapp import user_store
 
 TEST_TIME = datetime.datetime(2011, 11, 11, 11, 11, 11,
                               tzinfo=datetime.timezone.utc)
@@ -36,15 +37,23 @@ TEST_INVENTORY_ID = None
 TEST_THING_ID = None
 
 
+def post_as_json(request_func, path, data, method='POST'):
+    """Convert an object to JSON data and post to path."""
+    json_data = json.dumps(data)
+    return request_func(path,
+                        headers={'Content-Type': 'application/json'},
+                        data=json_data)
+
+
 @pytest.fixture(autouse=True)
 def setupdb():
     """Prepare the test database before use."""
     db.create_all()
+    # Create test database from generated test data
     for user_data in TEST_DATA:
         user_filtered = {k: user_data[k] for k in user_data
                          if k != 'inventories'}
-        user = models.User(**user_filtered)
-        db.session.add(user)
+        user = user_store.create_user(**user_filtered)
         for inventory_data in user_data['inventories']:
             inventory_filtered = {k: inventory_data[k] for k in inventory_data
                                   if k != 'things'}
@@ -55,13 +64,16 @@ def setupdb():
                 db.session.add(thing)
     db.session.commit()
     # Set up variables to be used in tests
+    # Select the last item in each group to detect bugs involving query.first()
     global TEST_USER_ID
-    TEST_USER_ID = models.User.query.first().id
+    TEST_USER_ID = models.User.query.order_by(models.User.id.desc()).first().id
     global TEST_INVENTORY_ID
     TEST_INVENTORY_ID = models.Inventory.query. \
+        order_by(models.Inventory.id.desc()). \
         filter_by(user_id=TEST_USER_ID).first().id
     global TEST_THING_ID
     TEST_THING_ID = models.Thing.query. \
+        order_by(models.Thing.id.desc()). \
         filter_by(inventory_id=TEST_INVENTORY_ID).first().id
     yield
     db.session.remove()
@@ -69,37 +81,40 @@ def setupdb():
 
 
 @pytest.fixture
-def user(client):
-    """Provide a user to a test and perform a fake login."""
-    user = models.User.query.get(TEST_USER_ID)
-    with client.session_transaction() as session:
-        session['user_id'] = user.get_id()
-        session['_fresh'] = True
-    return user
+def authenticated_client(client):
+    """Rewrite client requests to include an authentication token."""
+    client.user = models.User.query.get(TEST_USER_ID)
+    login_url = url_for('security.login')
+    credentials = {
+        'email': client.user.email,
+        'password': client.user.password}
+    response = post_as_json(client.post, login_url, credentials)
+    token = response.json['response']['user']['authentication_token']
 
+    # Proxy client to automatically insert authentication header
+    def open_proxy(*args, **kwargs):
+        if 'headers' not in kwargs:
+            kwargs['headers'] = {}
+        kwargs['headers']['Authentication-Token'] = token
+        return client._open(*args, **kwargs)
+    client._open = client.open
+    client.open = open_proxy
 
-def post_as_json(request_func, path, data, method='POST'):
-    """Convert an object to JSON data and post to path."""
-    json_data = json.dumps(data)
-    return request_func(path,
-                        headers={'Content-Type': 'application/json'},
-                        data=json_data)
+    return client
 
 
 # The tests
 #############
 
-
-@pytest.mark.usefixtures('client_class')
 class CommonTests:
     """Base class with tests common to all views."""
 
     view_params = {}
 
-    def test_unauthenticated(self):
+    def test_unauthenticated(self, client):
         """Test that view requires user to be logged in."""
         url = url_for(self.view_name, **self.view_params)
-        request_func = getattr(self.client, self.method)
+        request_func = getattr(client, self.method)
         response = request_func(url)
         assert response.status_code == HTTPStatus.UNAUTHORIZED
         assert response.headers['Content-Type'] == 'application/json'
@@ -108,37 +123,37 @@ class CommonTests:
 class ThingPostMixin:
     """Mixin to perform common tests for POST/PUT of things."""
 
-    def test_malformed_json(self, user):
+    def test_malformed_json(self, authenticated_client):
         """Test response to an invalid JSON string."""
         url = url_for(self.view_name, **self.view_params)
-        request_func = getattr(self.client, self.method)
+        request_func = getattr(authenticated_client, self.method)
         response = request_func(url,
                                 headers={'Content-Type': 'application/json'},
                                 data='{Bad JSON')
         assert response.status_code == HTTPStatus.BAD_REQUEST
 
-    def test_null_data(self, user):
+    def test_null_data(self, authenticated_client):
         """Test None/NULL passed as data."""
         url = url_for(self.view_name, **self.view_params)
-        request_func = getattr(self.client, self.method)
+        request_func = getattr(authenticated_client, self.method)
         null_thing = None
         response = post_as_json(request_func, url, null_thing,
                                 method=self.method)
         assert response.status_code == HTTPStatus.BAD_REQUEST
 
-    def test_list_thing(self, user):
+    def test_list_thing(self, authenticated_client):
         """Thing is a list instead of an object."""
         url = url_for(self.view_name, **self.view_params)
-        request_func = getattr(self.client, self.method)
+        request_func = getattr(authenticated_client, self.method)
         list_thing = []
         response = post_as_json(request_func, url, list_thing,
                                 method=self.method)
         assert response.status_code == HTTPStatus.BAD_REQUEST
 
-    def test_null_value(self, user):
+    def test_null_value(self, authenticated_client):
         """Non-nullable field is null."""
         url = url_for(self.view_name, **self.view_params)
-        request_func = getattr(self.client, self.method)
+        request_func = getattr(authenticated_client, self.method)
         null_field_thing = {
             'name': None
         }
@@ -146,14 +161,14 @@ class ThingPostMixin:
                                 method=self.method)
         assert response.status_code == HTTPStatus.BAD_REQUEST
 
-    def test_ignore_nonuser_fields(self, user):
+    def test_ignore_nonuser_fields(self, authenticated_client):
         """Check that a view does not modify non-user data."""
         url = url_for(self.view_name, **self.view_params)
         server_field_thing = {
             'name': 'Ignore other field',
             'date_deleted': TEST_TIME.isoformat()
         }
-        request_func = getattr(self.client, self.method)
+        request_func = getattr(authenticated_client, self.method)
         response = post_as_json(request_func, url, server_field_thing)
         assert response.status_code < 300
 
@@ -172,14 +187,15 @@ class TestGetInventories(CommonTests):
     view_name = 'stuffrapi.get_inventories'
     method = 'get'
 
-    def test_get_inventories(self, user):
+    def test_get_inventories(self, authenticated_client):
         """Test GETing Inventories."""
         # Prepare test data
         for user_data in TEST_DATA:
-            if user_data['email'] == user.email:
+            if user_data['email'] == authenticated_client.user.email:
                 test_data = user_data['inventories']
         expected_response = []
-        inventories = models.Inventory.query.filter_by(user_id=user.id).all()
+        inventories = models.Inventory.query.filter_by(
+            user_id=authenticated_client.user.id).all()
         for inventory in inventories:
             if inventory.date_created.tzinfo is None:
                 inventory.date_created = inventory.date_created.replace(
@@ -190,7 +206,7 @@ class TestGetInventories(CommonTests):
             expected_response.append(expected_inventory)
         url = url_for(self.view_name)
 
-        response = self.client.get(url)
+        response = authenticated_client.get(url)
         assert response.status_code == HTTPStatus.OK
         assert response.headers['Content-Type'] == 'application/json'
 
@@ -218,7 +234,7 @@ class TestGetThings(CommonTests):
         """
         self.view_params = {'inventory_id': TEST_INVENTORY_ID}
 
-    def test_get_things(self, user):
+    def test_get_things(self, authenticated_client):
         """Test GETing Things."""
         # Prepare test data
         url = url_for(self.view_name, **self.view_params)
@@ -243,7 +259,7 @@ class TestGetThings(CommonTests):
                 expected_thing['date_modified'].isoformat()
             expected_response.append(expected_thing)
 
-        response = self.client.get(url)
+        response = authenticated_client.get(url)
         assert response.status_code == HTTPStatus.OK
         assert response.headers['Content-Type'] == 'application/json'
 
@@ -256,16 +272,16 @@ class TestGetThings(CommonTests):
             expected_response.remove(response_thing)
         assert expected_response == [], "Unknown things in database"
 
-    def test_get_from_nonexistant_inventory(self, user):
+    def test_get_from_nonexistant_inventory(self, authenticated_client):
         """Test getting the things from an inventory that doesn't exist."""
         invalid_id = db.session.query(
             db.func.max(models.Inventory.id)).scalar() + 1
         url = url_for(self.view_name, inventory_id=invalid_id)
-        response = self.client.get(url)
+        response = authenticated_client.get(url)
         assert response.status_code == HTTPStatus.NOT_FOUND
         assert response.headers['Content-Type'] == 'application/json'
 
-    def test_wrong_user(self, user):
+    def test_wrong_user(self, authenticated_client):
         """Test that getting an inventory's things as the wrong user fails."""
         # Find an inventory that does not belong to the logged-in user
         for inventory in models.Inventory.query.all():
@@ -274,7 +290,7 @@ class TestGetThings(CommonTests):
                 break
         url = url_for(self.view_name, inventory_id=unowned_id)
 
-        response = self.client.get(url)
+        response = authenticated_client.get(url)
         assert response.status_code == HTTPStatus.FORBIDDEN
 
 
@@ -292,7 +308,7 @@ class TestPostThing(CommonTests, ThingPostMixin):
         """Specify inventory ID."""
         self.view_params = {'inventory_id': TEST_INVENTORY_ID}
 
-    def test_post_thing(self, user):
+    def test_post_thing(self, authenticated_client):
         """Test POSTing Things."""
         url = url_for(self.view_name, **self.view_params)
         # Fields returned in the response
@@ -300,7 +316,7 @@ class TestPostThing(CommonTests, ThingPostMixin):
         # Fields part of the full thing data but not returned
         server_fields = {'date_deleted', 'inventory_id'}
 
-        response = post_as_json(self.client.post, url, self.new_thing_data)
+        response = post_as_json(authenticated_client.post, url, self.new_thing_data)
         assert response.status_code == HTTPStatus.CREATED
         assert response.headers['Content-Type'] == 'application/json'
 
@@ -316,33 +332,33 @@ class TestPostThing(CommonTests, ThingPostMixin):
                               if k not in response_fields.union(server_fields)}
         assert self.new_thing_data == created_thing_dict
 
-    def test_post_empty_object(self, user):
+    def test_post_empty_object(self, authenticated_client):
         """Test posting an empty object."""
         url = url_for(self.view_name, **self.view_params)
         no_fields_thing = {}
-        response = post_as_json(self.client.post, url, no_fields_thing)
+        response = post_as_json(authenticated_client.post, url, no_fields_thing)
         assert response.status_code == HTTPStatus.BAD_REQUEST
 
-    def test_required_field_missing(self, user):
+    def test_required_field_missing(self, authenticated_client):
         """Test posting with a missing required field."""
         url = url_for(self.view_name, **self.view_params)
         # Required field missing
         missing_field_thing = {
             'description': "Missing name"
         }
-        response = post_as_json(self.client.post, url, missing_field_thing)
+        response = post_as_json(authenticated_client.post, url, missing_field_thing)
         assert response.status_code == HTTPStatus.BAD_REQUEST
 
-    def test_nonexistant_inventory(self, user):
+    def test_nonexistant_inventory(self, authenticated_client):
         """Test posting to an inventory that doesn't exist."""
         # Nonexistant inventory
         invalid_id = db.session.query(
             db.func.max(models.Inventory.id)).scalar() + 1
         invalid_url = url_for('stuffrapi.post_thing', inventory_id=invalid_id)
-        response = post_as_json(self.client.post, invalid_url, self.new_thing_data)
+        response = post_as_json(authenticated_client.post, invalid_url, self.new_thing_data)
         assert response.status_code == HTTPStatus.NOT_FOUND
 
-    def test_unowned_inventory(self, user):
+    def test_unowned_inventory(self, authenticated_client):
         """Test posting to an inventory owned by another user."""
         # Find an inventory that does not belong to the logged-in user
         for inventory in models.Inventory.query.all():
@@ -351,7 +367,7 @@ class TestPostThing(CommonTests, ThingPostMixin):
                 break
         url = url_for(self.view_name, inventory_id=unowned_id)
 
-        response = post_as_json(self.client.post, url, self.new_thing_data)
+        response = post_as_json(authenticated_client.post, url, self.new_thing_data)
         assert response.status_code == HTTPStatus.FORBIDDEN
 
 
@@ -365,7 +381,7 @@ class TestPutThing(CommonTests, ThingPostMixin):
         """Specify inventory ID."""
         self.view_params = {'thing_id': TEST_THING_ID}
 
-    def test_update_thing(self, user):
+    def test_update_thing(self, authenticated_client):
         """Test PUT (updating) a thing."""
         url = url_for(self.view_name, **self.view_params)
         original_thing = models.Thing.query.get(TEST_THING_ID)
@@ -375,7 +391,7 @@ class TestPutThing(CommonTests, ThingPostMixin):
                            'notes': expected_data['notes']}
         expected_data.update(modified_fields)
 
-        response = post_as_json(self.client.put, url, modified_fields)
+        response = post_as_json(authenticated_client.put, url, modified_fields)
         assert response.status_code == HTTPStatus.NO_CONTENT
 
         modified_data = models.Thing.query.get(TEST_THING_ID).as_dict()
@@ -383,25 +399,25 @@ class TestPutThing(CommonTests, ThingPostMixin):
         del modified_data['date_modified'], expected_data['date_modified']
         assert modified_data == expected_data
 
-    def test_update_nonexistant_thing(self, user):
+    def test_update_nonexistant_thing(self, authenticated_client):
         """Test updating a nonexistant thing."""
         invalid_id = db.session.query(db.func.max(models.Thing.id)).scalar() + 1
         invalid_url = url_for('stuffrapi.update_thing', thing_id=invalid_id)
         invalid_id_thing = {'name': 'Should fail'}
-        response = post_as_json(self.client.put, invalid_url, invalid_id_thing)
+        response = post_as_json(authenticated_client.put, invalid_url, invalid_id_thing)
         assert response.status_code == HTTPStatus.NOT_FOUND
 
-    def test_update_nonint_id(self, user):
+    def test_update_nonint_id(self, authenticated_client):
         """Test updating with an invalid noninteger ID."""
         # Build manually because url_for checks type
         # TODO: base off url_for('stuffrapi.search_things')
         notint_url = '/api/things/not_id'
         bad_id_thing = {'name': 'Should fail'}
-        response = post_as_json(self.client.put, notint_url, bad_id_thing)
+        response = post_as_json(authenticated_client.put, notint_url, bad_id_thing)
         # Flask view looks for an int after /things, no view is set up for str
         assert response.status_code == HTTPStatus.METHOD_NOT_ALLOWED
 
-    def test_unowned_thing(self, user):
+    def test_unowned_thing(self, authenticated_client):
         """Test updating a thing owned by another user."""
         # Find an inventory that does not belong to the logged-in user
         for inventory in models.Inventory.query.all():
@@ -410,7 +426,7 @@ class TestPutThing(CommonTests, ThingPostMixin):
                 break
         url = url_for(self.view_name, thing_id=test_thing.id)
 
-        response = post_as_json(self.client.put, url,
+        response = post_as_json(authenticated_client.put, url,
                                 {'name': 'Should be forbidden'})
         assert response.status_code == HTTPStatus.FORBIDDEN
 
@@ -425,41 +441,42 @@ class TestDeleteThing(CommonTests):
         """Specify URL params."""
         self.view_params = {'thing_id': TEST_THING_ID}
 
-    def test_delete_thing(self, user):
+    def test_delete_thing(self, authenticated_client):
         """Test DELETE a thing."""
         url = url_for(self.view_name, **self.view_params)
         thing_to_delete = models.Thing.query.get(TEST_THING_ID)
 
-        response = self.client.delete(url)
+        response = authenticated_client.delete(url)
         assert response.status_code == HTTPStatus.NO_CONTENT
         assert thing_to_delete.date_deleted is not None
 
-    def test_delete_nonexistant_item(self, user):
+    def test_delete_nonexistant_item(self, authenticated_client):
         """Test deleting a thing not present in the database."""
         invalid_id = db.session.query(db.func.max(models.Thing.id)).scalar() + 1
-        response = self.client.delete(url_for('stuffrapi.delete_thing',
-                                              thing_id=invalid_id))
+        response = authenticated_client.delete(
+            url_for('stuffrapi.delete_thing', thing_id=invalid_id))
         assert response.status_code == HTTPStatus.NOT_FOUND
 
-    def test_delete_nonint_id(self, user):
+    def test_delete_nonint_id(self, authenticated_client):
         """Test deleting a thing using a non-integer ID."""
         # Build manually because url_for checks type
         # TODO: base off url_for('stuffrapi.search_things')
         notint_url = '/api/things/not_id'
-        response = self.client.delete(notint_url)
+        response = authenticated_client.delete(notint_url)
         assert response.status_code == HTTPStatus.METHOD_NOT_ALLOWED
 
-    def test_delete_post_data(self, user):
+    def test_delete_post_data(self, authenticated_client):
         """Test deleting ignores data in request."""
         url = url_for(self.view_name, **self.view_params)
-        response = self.client.delete(url,
-                                      headers={'Content-Type': 'application/json'},
-                                      data='Data should be ignored')
+        response = authenticated_client.delete(
+            url,
+            headers={'Content-Type': 'application/json'},
+            data='Data should be ignored')
         assert response.status_code == HTTPStatus.NO_CONTENT
         thing_to_delete = models.Thing.query.get(TEST_THING_ID)
         assert thing_to_delete.date_deleted is not None
 
-    def test_unowned_thing(self, user):
+    def test_unowned_thing(self, authenticated_client):
         """Test deleting a thing owned by another user."""
         # Find an inventory that does not belong to the logged-in user
         for inventory in models.Inventory.query.all():
@@ -468,5 +485,5 @@ class TestDeleteThing(CommonTests):
                 break
         url = url_for(self.view_name, thing_id=test_thing.id)
 
-        response = self.client.delete(url)
+        response = authenticated_client.delete(url)
         assert response.status_code == HTTPStatus.FORBIDDEN

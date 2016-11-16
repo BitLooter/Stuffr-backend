@@ -17,3 +17,6 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 CREATE_TABLES = False
 # Set False if you need to create app without seeding database, e.g. testing
 INITIALIZE_DATABASE = True
+
+# Flask-Security settings
+SECURITY_URL_PREFIX = '/auth'
