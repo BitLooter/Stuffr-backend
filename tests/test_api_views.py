@@ -193,6 +193,7 @@ class TestGetUserInfo(CommonTests):
         for user_data in TEST_DATA:
             if user_data['email'] == authenticated_client.user.email:
                 expected_response = user_data.copy()
+                del expected_response['password']
                 del expected_response['inventories']
                 expected_response['id'] = authenticated_client.user.id
         url = url_for(self.view_name)
@@ -219,15 +220,9 @@ class TestGetInventories(CommonTests):
             if user_data['email'] == authenticated_client.user.email:
                 test_data = user_data['inventories']
         expected_response = []
-        inventories = models.Inventory.query.filter_by(
-            user_id=authenticated_client.user.id).all()
-        for inventory in inventories:
-            if inventory.date_created.tzinfo is None:
-                inventory.date_created = inventory.date_created.replace(
-                    tzinfo=datetime.timezone.utc)
-            expected_inventory = inventory.as_dict()
-            expected_inventory['date_created'] = \
-                expected_inventory['date_created'].isoformat()
+        for inventory in user_data['inventories']:
+            expected_inventory = inventory.copy()
+            del expected_inventory['things']
             expected_response.append(expected_inventory)
         url = url_for(self.view_name)
 
@@ -240,6 +235,9 @@ class TestGetInventories(CommonTests):
         assert len(response_data) == len(test_data)
         # Verify the test data and only the test data is returned
         for response_inventory in response_data:
+            # Remove generated data
+            del response_inventory['id']
+            del response_inventory['date_created']
             assert response_inventory in expected_response
             expected_response.remove(response_inventory)
         assert expected_response == [], "Unknown inventories in database"

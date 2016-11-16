@@ -101,12 +101,11 @@ def check_inventory_exists(inventory_id: int) -> bool:
 NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
 # Fields sent to the client
 USER_CLIENT_ENTITIES = {
-    models.User.id, models.User.email, models.User.password,
+    models.User.id, models.User.email,
     models.User.name_first, models.User.name_last}
 USER_CLIENT_FIELDS = get_entity_names(USER_CLIENT_ENTITIES)
 INVENTORY_CLIENT_ENTITIES = {
-    models.Inventory.id, models.Inventory.name, models.Inventory.user_id,
-    models.Inventory.date_created}
+    models.Inventory.id, models.Inventory.name, models.Inventory.date_created}
 THING_CLIENT_ENTITIES = {
     models.Thing.id, models.Thing.name,
     models.Thing.date_created, models.Thing.date_modified,
