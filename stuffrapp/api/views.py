@@ -16,6 +16,9 @@ bp = Blueprint('stuffrapi', __name__)
 
 ViewReturnType = Tuple[str, int, Dict[str, str]]
 
+# Helper functions
+##################
+
 
 @bp.errorhandler(HTTPStatus.BAD_REQUEST)
 def defaulthandler(e: Exception):
@@ -59,6 +62,12 @@ def filter_user_fields(original_thing: Mapping) -> Dict:
             if k in THING_USER_FIELDS}
 
 
+def filter_inventory_user_fields(original_inventory: Mapping) -> Dict:
+    """Return a dict that contains only the user fields from original_inventory."""
+    return {k: original_inventory[k] for k in original_inventory
+            if k in INVENTORY_USER_FIELDS}
+
+
 def fix_dict_datetimes(the_dict: Mapping) -> Dict:
     """Ensure datetimes have timezones in a dict from SQLAlchemy.
 
@@ -98,6 +107,9 @@ def check_inventory_exists(inventory_id: int) -> bool:
         return 'No inventory with id {}'.format(inventory_id)
 
 
+# Constants
+###########
+
 NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
 # Fields sent to the client
 USER_CLIENT_ENTITIES = {
@@ -117,15 +129,25 @@ THING_USER_ENTITIES = {
     models.Thing.name,
     models.Thing.description, models.Thing.notes}
 THING_USER_FIELDS = get_entity_names(THING_USER_ENTITIES)
+INVENTORY_USER_ENTITIES = {
+    models.Inventory.name}
+INVENTORY_USER_FIELDS = get_entity_names(INVENTORY_USER_ENTITIES)
 # These fields are handled by the server and not passed in from the client.
 THING_MANAGED_ENTITIES = {
     models.Thing.id, models.Thing.date_created, models.Thing.date_modified}
 THING_MANAGED_FIELDS = get_entity_names(THING_MANAGED_ENTITIES)
+INVENTORY_MANAGED_ENTITIES = {
+    models.Inventory.id, models.Inventory.date_created}
+INVENTORY_MANAGED_FIELDS = get_entity_names(INVENTORY_MANAGED_ENTITIES)
 # Fields that must have data
 THING_REQUIRED_FIELDS = {
     e.key for e in THING_USER_ENTITIES
     if models.Thing.__table__.columns[e.key].nullable is False and
     e.key not in ('inventory_id')}
+INVENTORY_REQUIRED_FIELDS = {
+    e.key for e in INVENTORY_USER_ENTITIES
+    if models.Inventory.__table__.columns[e.key].nullable is False and
+    e.key not in ('user_id')}
 
 
 # Routes
@@ -155,6 +177,34 @@ def get_inventories() -> ViewReturnType:
     for inventory in inventories:
         fixed_inventories.append(fix_dict_datetimes(inventory._asdict()))
     return json_response(fixed_inventories)
+
+
+@bp.route('/inventories', methods=['POST'])
+@auth_token_required
+def post_inventory() -> ViewReturnType:
+    """POST an inventory to the database."""
+    request_data = request.get_json()
+
+    # Sanity check of data
+    error_message = check_thing_request(request_data)
+    if error_message:
+        return error_response(error_message)
+    # New inventories require certain fields
+    if not INVENTORY_REQUIRED_FIELDS.issubset(request_data):
+        missing_fields = [f for f in INVENTORY_REQUIRED_FIELDS
+                          if f not in request_data]
+        return error_response(
+            "Required field(s) missing: {}".format(', '.join(missing_fields))
+        )
+    # Filter only desired fields
+    new_inventory_data = filter_inventory_user_fields(request_data)
+
+    inventory = models.Inventory(user=current_user, **new_inventory_data)
+    db.session.add(inventory)
+    db.session.commit()
+    # TODO: Error handling - what if database is down?
+    initializedData = {k: inventory.as_dict()[k] for k in INVENTORY_MANAGED_FIELDS}
+    return json_response(initializedData, HTTPStatus.CREATED)
 
 
 @bp.route('/inventories/<int:inventory_id>/things')

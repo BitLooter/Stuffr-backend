@@ -243,6 +243,56 @@ class TestGetInventories(CommonTests):
         assert expected_response == [], "Unknown inventories in database"
 
 
+class TestPostInventory(CommonTests, ThingPostMixin):
+    """Tests for adding inventories."""
+
+    view_name = 'stuffrapi.post_inventory'
+    method = 'post'
+    new_inventory_data = {
+        'name': 'NEWINVENTORY'}
+
+    def test_post_inventory(self, authenticated_client):
+        """Test POSTing inventories."""
+        url = url_for(self.view_name, **self.view_params)
+        # Fields returned in the response
+        response_fields = {'id', 'date_created'}
+        # Fields added by the backend
+        server_fields = {'user_id'}
+
+        response = post_as_json(authenticated_client.post, url, self.new_inventory_data)
+        assert response.status_code == HTTPStatus.CREATED
+        assert response.headers['Content-Type'] == 'application/json'
+
+        new_inventory_response = response.json
+        assert isinstance(new_inventory_response, dict)
+        assert set(new_inventory_response) == response_fields
+
+        created_inventory = models.Inventory.query.get(new_inventory_response['id'])
+        assert created_inventory is not None
+        created_inventory_dict = created_inventory.as_dict()
+        # Remove fields added by backend
+        created_inventory_dict = {k: created_inventory_dict[k] for k in created_inventory_dict
+                                  if k not in response_fields.union(server_fields)}
+        assert self.new_inventory_data == created_inventory_dict
+
+    def test_post_empty_object(self, authenticated_client):
+        """Test posting an empty object."""
+        url = url_for(self.view_name, **self.view_params)
+        no_fields_inventory = {}
+        response = post_as_json(authenticated_client.post, url, no_fields_inventory)
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+
+    def test_required_field_missing(self, authenticated_client):
+        """Test posting with a missing required field."""
+        url = url_for(self.view_name, **self.view_params)
+        # Required field missing
+        missing_field_inventory = {
+            'description': "Missing name"
+        }
+        response = post_as_json(authenticated_client.post, url, missing_field_inventory)
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+
+
 class TestGetThings(CommonTests):
     """Tests for getting things."""
 
