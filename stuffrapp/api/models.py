@@ -26,8 +26,8 @@ class BaseModel(db.Model):
 class DatabaseInfo(BaseModel):
     """Model for database metadata."""
 
-    creator_name = db.Column(db.Unicode, nullable=False)
-    creator_version = db.Column(db.Unicode, nullable=False)
+    creator_name = db.Column(db.Unicode(length=32), nullable=False)
+    creator_version = db.Column(db.Unicode(length=32), nullable=False)
     date_created = db.Column(db.DateTime, nullable=False,
                              default=datetime.datetime.utcnow)
     # Database schema version - value incremented when a breaking change is made
@@ -49,18 +49,18 @@ class User(BaseModel, flask_security.UserMixin):
     """Model for user data."""
 
     # Email is used for the username
-    email = db.Column(db.Unicode, nullable=False)
-    password = db.Column(db.Unicode, nullable=False)
-    name_first = db.Column(db.Unicode, nullable=False, default='FN')
-    name_last = db.Column(db.Unicode, nullable=False, default='LN')
+    email = db.Column(db.Unicode(length=256), nullable=False)
+    password = db.Column(db.Unicode(length=128), nullable=False)
+    name_first = db.Column(db.Unicode(length=128), nullable=False)
+    name_last = db.Column(db.Unicode(length=128), nullable=False)
     date_created = db.Column(db.DateTime, nullable=False,
                              default=datetime.datetime.utcnow)
     active = db.Column(db.Boolean)
     confirmed_at = db.Column(db.DateTime)
     last_login_at = db.Column(db.DateTime)
     current_login_at = db.Column(db.DateTime)
-    last_login_ip = db.Column(db.Unicode)
-    current_login_ip = db.Column(db.Unicode)
+    last_login_ip = db.Column(db.Unicode(length=45))
+    current_login_ip = db.Column(db.Unicode(length=45))
     login_count = db.Column(db.Integer)
     # Relationships
     inventories = db.relationship('Inventory', backref='user', lazy='dynamic')
@@ -75,8 +75,8 @@ class User(BaseModel, flask_security.UserMixin):
 class Role(BaseModel, flask_security.RoleMixin):
     """Role for a user."""
 
-    name = db.Column(db.Unicode, nullable=False)
-    description = db.Column(db.Unicode)
+    name = db.Column(db.Unicode(length=32), nullable=False)
+    description = db.Column(db.Unicode(length=256))
 
     def __repr__(self):
         """Basic Role data as a string."""
@@ -86,7 +86,7 @@ class Role(BaseModel, flask_security.RoleMixin):
 class Inventory(BaseModel):
     """Model for a collection of things."""
 
-    name = db.Column(db.Unicode, nullable=False)
+    name = db.Column(db.Unicode(length=128), nullable=False)
     date_created = db.Column(db.DateTime, nullable=False,
                              default=datetime.datetime.utcnow)
     # Relationships
@@ -101,7 +101,7 @@ class Inventory(BaseModel):
 class Thing(BaseModel):
     """Model for generic thing data."""
 
-    name = db.Column(db.Unicode, nullable=False)
+    name = db.Column(db.Unicode(length=128), nullable=False)
     date_created = db.Column(db.DateTime, nullable=False,
                              default=datetime.datetime.utcnow)
     date_modified = db.Column(db.DateTime, nullable=False,
