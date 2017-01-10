@@ -20,3 +20,4 @@ INITIALIZE_DATABASE = True
 
 # Flask-Security settings
 SECURITY_URL_PREFIX = '/auth'
+SECURITY_REGISTERABLE = True
