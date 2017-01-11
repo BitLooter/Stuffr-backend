@@ -9,12 +9,22 @@ from flask_script import Manager
 from stuffrapp import create_app
 from database import db
 
-manager_app = create_app({
-    'INITIALIZE_DATABASE': False,
-    'CREATE_TABLES': False
+# Constants
+############
+DEBUG_CONFIG = 'config_debug.py'
+
+# Manager setup
+################
+
+# Manager is given a different app from runserver that doesn't touch
+# the database during initialization
+manager_app = create_app(DEBUG_CONFIG, config_override={
+    'STUFFR_INITIALIZE_DATABASE': False,
+    'STUFFR_CREATE_TABLES': False
 })
 manager = Manager(manager_app)
 
+# Alembic
 migrate = Migrate(manager_app, db)
 manager.add_command('db', MigrateCommand)
 
@@ -23,7 +33,7 @@ manager.add_command('db', MigrateCommand)
 def runserver():
     """Run the Flask debug server."""
     # manager_app does not do database initialization
-    debug_app = create_app()
+    debug_app = create_app(DEBUG_CONFIG)
     DebugToolbarExtension(debug_app)
 
     @debug_app.route('/')
@@ -32,8 +42,8 @@ def runserver():
         # Using render_template so flask_debugtoolbar can do its thing
         return render_template('index.html')
 
-    debug_app.run(debug_app.config['SERVER_DEBUG_HOST'],
-                  debug_app.config['SERVER_DEBUG_PORT'])
+    debug_app.run(debug_app.config['STUFFR_DEBUG_HOST'],
+                  debug_app.config['STUFFR_DEBUG_PORT'])
 
 
 if __name__ == "__main__":
