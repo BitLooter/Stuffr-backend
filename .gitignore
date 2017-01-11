@@ -1,4 +1,6 @@
 stuffr.db
+instance/config_debug.py
+instance/config_prod.py
 # Frontend code is a separate repo, 'static' can be a symlink to its 'dist'
 static
 

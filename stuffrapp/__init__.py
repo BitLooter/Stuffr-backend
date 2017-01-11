@@ -1,6 +1,6 @@
 """Main file for Stuffr's backend."""
 
-from typing import Mapping
+from typing import Mapping, Optional
 from http import HTTPStatus
 from flask import Flask
 from sqlalchemy.orm.exc import MultipleResultsFound
@@ -9,8 +9,8 @@ from flask_security import user_registered
 from flask_security.forms import ConfirmRegisterForm, StringField
 
 from database import db
-from .api.views import models
-from .api.views import bp as blueprint_api, error_response
+from .api import models
+from .api.views import bp as blueprint_api, error_response, ViewReturnType
 
 logger = None
 user_store = SQLAlchemyUserDatastore(db, models.User, models.Role)
@@ -24,14 +24,15 @@ class StuffrRegisterForm(ConfirmRegisterForm):
     name_last = StringField('Last name')
 
 
-def api_unauthorized():
+def api_unauthorized() -> ViewReturnType:
     """Response handler for unauthenticated requests to protected API calls."""
     logger.warning('Unauthenticated request')
     return error_response('You must be logged in to access this resource',
                           status_code=HTTPStatus.UNAUTHORIZED)
 
 
-def create_app(config_override: Mapping={}) -> Flask:
+def create_app(local_config: Optional[str]=None,
+               config_override: Mapping={}) -> Flask:
     """Create the flask app for the debug server.
 
     Parameters:
@@ -43,8 +44,9 @@ def create_app(config_override: Mapping={}) -> Flask:
                 instance_relative_config=True,
                 static_url_path='',
                 template_folder='static')
-    app.config.from_object('defaultconfig')
-    app.config.from_pyfile('debugconfig.py', silent=True)
+    app.config.from_object('config_default')
+    if local_config:
+        app.config.from_pyfile(local_config, silent=True)
     app.config.from_mapping(config_override)
     global logger
     logger = app.logger
@@ -54,9 +56,9 @@ def create_app(config_override: Mapping={}) -> Flask:
     security._state.unauthorized_handler(api_unauthorized)
     # TODO: Better initial setup
     with app.app_context():
-        if app.config['CREATE_TABLES']:
+        if app.config['STUFFR_CREATE_TABLES']:
             db.create_all()
-        if app.config['INITIALIZE_DATABASE']:
+        if app.config['STUFFR_INITIALIZE_DATABASE']:
             initialize_database()
 
     app.register_blueprint(blueprint_api, url_prefix='/api')
@@ -70,7 +72,7 @@ def create_app(config_override: Mapping={}) -> Flask:
     return app
 
 
-def setup_new_user(user):
+def setup_new_user(user: models.User):
     """Initial setup for a new user."""
     logger.info('Initializing new user {}'.format(user.email))
     default_inventory = models.Inventory(
