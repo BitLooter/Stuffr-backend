@@ -1,6 +1,12 @@
-"""Main file for Stuffr's backend."""
+"""
+Main file for Stuffr's backend.
 
-from typing import Mapping, Optional
+Use create_app() to generate the Flask app to be used. Note that it expects an
+environment variable named STUFFR_SETTINGS to contain the name of the file
+containing the local configuration.
+"""
+
+from typing import Mapping
 from http import HTTPStatus
 from flask import Flask
 from sqlalchemy.orm.exc import MultipleResultsFound
@@ -31,8 +37,7 @@ def api_unauthorized() -> ViewReturnType:
                           status_code=HTTPStatus.UNAUTHORIZED)
 
 
-def create_app(local_config: Optional[str]=None,
-               config_override: Mapping={}) -> Flask:
+def create_app(config_override: Mapping={}) -> Flask:
     """Create the flask app for the debug server.
 
     Parameters:
@@ -44,9 +49,8 @@ def create_app(local_config: Optional[str]=None,
                 instance_relative_config=True,
                 static_url_path='',
                 template_folder='static')
-    app.config.from_object('config_default')
-    if local_config:
-        app.config.from_pyfile(local_config, silent=True)
+    app.config.from_object('config.default')
+    app.config.from_envvar('STUFFR_SETTINGS')
     app.config.from_mapping(config_override)
     global logger
     logger = app.logger
