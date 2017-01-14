@@ -7,7 +7,6 @@ containing the local configuration.
 """
 
 from typing import Mapping
-from http import HTTPStatus
 from flask import Flask
 from sqlalchemy.orm.exc import MultipleResultsFound
 from flask_security import Security, SQLAlchemyUserDatastore
@@ -16,7 +15,7 @@ from flask_security.forms import ConfirmRegisterForm, StringField
 
 from database import db
 from .api import models
-from .api.views import bp as blueprint_api, error_response, ViewReturnType
+from .api.views import bp as blueprint_api, api_unauthorized
 
 logger = None
 user_store = SQLAlchemyUserDatastore(db, models.User, models.Role)
@@ -28,13 +27,6 @@ class StuffrRegisterForm(ConfirmRegisterForm):
     # TODO: make required
     name_first = StringField('First name')
     name_last = StringField('Last name')
-
-
-def api_unauthorized() -> ViewReturnType:
-    """Response handler for unauthenticated requests to protected API calls."""
-    logger.warning('Unauthenticated request')
-    return error_response('You must be logged in to access this resource',
-                          status_code=HTTPStatus.UNAUTHORIZED)
 
 
 def create_app(config_override: Mapping={}) -> Flask:

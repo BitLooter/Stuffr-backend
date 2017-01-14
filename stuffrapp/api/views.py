@@ -56,6 +56,14 @@ def error_response(message: str, status_code: int=HTTPStatus.BAD_REQUEST) -> Vie
     return json_response({'message': message}, status_code=status_code)
 
 
+def api_unauthorized() -> ViewReturnType:
+    """Response handler for unauthenticated requests to protected API calls."""
+    # TODO: Fix logging
+    # logger.warning('Unauthenticated request')
+    return error_response('You must be logged in to access this resource',
+                          status_code=HTTPStatus.UNAUTHORIZED)
+
+
 def filter_user_fields(original_thing: Mapping) -> Dict:
     """Return a dict that contains only the user fields from original_thing."""
     return {k: original_thing[k] for k in original_thing
