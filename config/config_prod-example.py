@@ -14,3 +14,5 @@ SQLALCHEMY_DATABASE_URI = URL(
     password='',
     database=''
 )
+
+SECURITY_PASSWORD_HASH = 'bcrypt'
