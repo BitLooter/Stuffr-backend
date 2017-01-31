@@ -1,0 +1,4 @@
+[flake8]
+ignore =
+  # Use git-blame if you want to know who wrote the line
+  H101
