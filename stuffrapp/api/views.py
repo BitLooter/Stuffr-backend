@@ -5,9 +5,9 @@ from http import HTTPStatus
 import json
 from typing import Any, Dict, Mapping, Optional, Sequence, Set, Tuple
 from flask import request, Blueprint
-from sqlalchemy import exists
 from flask_security import current_user
 from flask_security.decorators import auth_token_required
+from sqlalchemy import exists
 
 from . import models
 from database import db
@@ -21,9 +21,9 @@ ViewReturnType = Tuple[str, int, Dict[str, str]]
 
 
 @bp.errorhandler(HTTPStatus.BAD_REQUEST)
-def defaulthandler(e: Exception):
+def defaulthandler(e: Exception) -> ViewReturnType:
     """Default exception handler to return JSON instead of HTML."""
-    json_data = {'message': '{}: {}'.format(e.name, e.description)},
+    json_data = {'message': '{}: {}'.format(e.name, e.description)}
     return json_response(json_data, status_code=e.code)
 
 
@@ -130,12 +130,12 @@ THING_CLIENT_ENTITIES = {
     models.Thing.id, models.Thing.name,
     models.Thing.date_created, models.Thing.date_modified,
     models.Thing.date_deleted,
-    models.Thing.description, models.Thing.notes,
+    models.Thing.details, models.Thing.location,
     models.Thing.inventory_id}
 # Fields client is allowed to modify
 THING_USER_ENTITIES = {
     models.Thing.name,
-    models.Thing.description, models.Thing.notes}
+    models.Thing.details, models.Thing.location}
 THING_USER_FIELDS = get_entity_names(THING_USER_ENTITIES)
 INVENTORY_USER_ENTITIES = {
     models.Inventory.name}

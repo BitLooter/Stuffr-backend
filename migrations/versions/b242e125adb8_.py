@@ -11,12 +11,12 @@ Create Date: 2017-01-09 22:54:56.448201
 
 """
 
+from alembic import op
+import sqlalchemy as sa
+
 # revision identifiers, used by Alembic.
 revision = 'b242e125adb8'
 down_revision = None
-
-from alembic import op
-import sqlalchemy as sa
 
 
 def upgrade():
@@ -56,6 +56,13 @@ def upgrade():
         sa.PrimaryKeyConstraint('id')
     )
     op.create_table(
+        'roles_users',
+        sa.Column('user_id', sa.Integer(), nullable=False),
+        sa.Column('role_id', sa.Integer(), nullable=False),
+        sa.ForeignKeyConstraint(['role_id'], ['role.id'], ),
+        sa.ForeignKeyConstraint(['user_id'], ['user.id'], )
+    )
+    op.create_table(
         'inventory',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.Unicode(length=128), nullable=False),
@@ -65,13 +72,6 @@ def upgrade():
         sa.PrimaryKeyConstraint('id')
     )
     op.create_table(
-        'roles_users',
-        sa.Column('user_id', sa.Integer(), nullable=False),
-        sa.Column('role_id', sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(['role_id'], ['role.id'], ),
-        sa.ForeignKeyConstraint(['user_id'], ['user.id'], )
-    )
-    op.create_table(
         'thing',
         sa.Column('id', sa.Integer(), nullable=False),
         sa.Column('name', sa.Unicode(length=128), nullable=False,
@@ -79,8 +79,8 @@ def upgrade():
         sa.Column('date_created', sa.DateTime(), nullable=False),
         sa.Column('date_modified', sa.DateTime(), nullable=False),
         sa.Column('date_deleted', sa.DateTime()),
-        sa.Column('description', sa.UnicodeText()),
-        sa.Column('notes', sa.UnicodeText()),
+        sa.Column('details', sa.UnicodeText()),
+        sa.Column('location', sa.Unicode(length=128)),
         sa.Column('inventory_id', sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(['inventory_id'], ['inventory.id'], ),
         sa.PrimaryKeyConstraint('id')

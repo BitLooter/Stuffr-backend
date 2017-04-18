@@ -1,8 +1,8 @@
 """Data models for Stuffr."""
 
 import datetime
-import sqlalchemy
 import flask_security
+import sqlalchemy
 
 from database import db
 
@@ -108,8 +108,8 @@ class Thing(BaseModel):
                               default=datetime.datetime.utcnow,
                               onupdate=datetime.datetime.utcnow)
     date_deleted = db.Column(db.DateTime)
-    description = db.Column(db.UnicodeText)
-    notes = db.Column(db.UnicodeText)
+    location = db.Column(db.Unicode(length=128))
+    details = db.Column(db.UnicodeText)
     # Relationships
     inventory_id = db.Column(db.Integer, db.ForeignKey('inventory.id'),
                              nullable=False)
