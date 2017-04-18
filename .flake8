@@ -1,4 +1,5 @@
 [flake8]
 ignore =
-  # Use git-blame if you want to know who wrote the line
-  H101
+  H101,
+  H301
+max-line-length = 99
