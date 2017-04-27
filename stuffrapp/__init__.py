@@ -16,6 +16,7 @@ from flask_security.forms import ConfirmRegisterForm, StringField
 from database import db
 from .api import models
 from .api.views import bp as blueprint_api, api_unauthorized
+from .simple import bp as blueprint_simple
 
 logger = None
 user_store = SQLAlchemyUserDatastore(db, models.User, models.Role)
@@ -57,6 +58,7 @@ def create_app(config_override: Mapping={}) -> Flask:
         if app.config['STUFFR_INITIALIZE_DATABASE']:
             initialize_database()
 
+    app.register_blueprint(blueprint_simple, url_prefix='/simple')
     app.register_blueprint(blueprint_api, url_prefix='/api')
 
     # connect() doesn't work for some reason, but the decorator does. Should

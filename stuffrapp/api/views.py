@@ -12,13 +12,13 @@ from sqlalchemy import exists
 from . import models
 from database import db
 
-bp = Blueprint('stuffrapi', __name__)
+bp = Blueprint('stuffrapi', __name__, template_folder='templates')
 
 ViewReturnType = Tuple[str, int, Dict[str, str]]
 
+
 # Helper functions
 ##################
-
 
 @bp.errorhandler(HTTPStatus.BAD_REQUEST)
 def defaulthandler(e: Exception) -> ViewReturnType:
@@ -109,6 +109,8 @@ def check_thing_request(request_data: Mapping) -> Optional[ViewReturnType]:
 
 def check_inventory_exists(inventory_id: int) -> bool:
     """Check that inventory_id is an actual inventory in the database."""
+    # TODO: WTF? Return type is bool, but it returns None or a str? Why not
+    #  raise an exception? Or just return a bool? Was I drunk when I wrote this?
     inventory_exists = db.session.query(
         exists().where(models.Inventory.id == inventory_id)).scalar()
     if not inventory_exists:
@@ -124,8 +126,8 @@ USER_CLIENT_ENTITIES = {
     models.User.id, models.User.email,
     models.User.name_first, models.User.name_last}
 USER_CLIENT_FIELDS = get_entity_names(USER_CLIENT_ENTITIES)
-INVENTORY_CLIENT_ENTITIES = {
-    models.Inventory.id, models.Inventory.name, models.Inventory.date_created}
+# INVENTORY_CLIENT_ENTITIES = {
+#     models.Inventory.id, models.Inventory.name, models.Inventory.date_created}
 THING_CLIENT_ENTITIES = {
     models.Thing.id, models.Thing.name,
     models.Thing.date_created, models.Thing.date_modified,
@@ -177,14 +179,8 @@ def get_userinfo() -> ViewReturnType:
 @auth_token_required
 def get_inventories() -> ViewReturnType:
     """Provide a list of inventories from the database."""
-    inventories = models.Inventory.query. \
-        with_entities(*INVENTORY_CLIENT_ENTITIES). \
-        filter_by(user_id=current_user.id).all()
-    # SQLite does not keep timezone information, assume UTC
-    fixed_inventories = []
-    for inventory in inventories:
-        fixed_inventories.append(fix_dict_datetimes(inventory._asdict()))
-    return json_response(fixed_inventories)
+    inventories = models.Inventory.get_user_inventories(current_user.id)
+    return json_response(inventories)
 
 
 @bp.route('/inventories', methods=['POST'])
@@ -194,6 +190,7 @@ def post_inventory() -> ViewReturnType:
     request_data = request.get_json()
 
     # Sanity check of data
+    # TODO: Create check_inventory_request function
     error_message = check_thing_request(request_data)
     if error_message:
         return error_response(error_message)
@@ -227,13 +224,8 @@ def get_things(inventory_id: int=None) -> ViewReturnType:
         return error_response('Inventory does not belong to user',
                               status_code=HTTPStatus.FORBIDDEN)
 
-    things = models.Thing.query.with_entities(*THING_CLIENT_ENTITIES). \
-        filter_by(date_deleted=None, inventory_id=inventory_id).all()
-    fixed_things = []
-    for thing in things:
-        # SQLite does not keep timezone information, assume UTC
-        fixed_things.append(fix_dict_datetimes(thing._asdict()))
-    return json_response(fixed_things)
+    things = models.Thing.get_inventory_things(inventory_id)
+    return json_response(things)
 
 
 @bp.route('/inventories/<int:inventory_id>/things', methods=['POST'])

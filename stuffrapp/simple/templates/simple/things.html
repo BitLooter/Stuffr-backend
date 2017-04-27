@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <title>Stuffr - Things</title>
+  </head>
+  <body>
+    <h1>Stuffr - Things</h1>
+    <ul>
+      {% for thing in things %}
+        <li><a href='{{ thing.id }}/'>{{ thing.name }}</a></li>
+      {% endfor %}
+    </ul>
+  </body>
+</html>
