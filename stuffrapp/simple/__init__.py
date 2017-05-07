@@ -27,7 +27,7 @@ def main_view():
 
 @bp.route('/inventories/')
 @login_required
-def inventories():
+def list_inventories():
     """Display all available inventories."""
     inventories = models.Inventory.get_user_inventories(current_user.id)
     return render_template('simple/inventories.html', inventories=inventories)
@@ -35,7 +35,7 @@ def inventories():
 
 @bp.route('/inventories/<int:inventory_id>/')
 @login_required
-def things(inventory_id: int):
+def list_things(inventory_id: int):
     """Display things part of given inventory."""
     # TODO: Verify user owns inventory
     things = models.Thing.get_inventory_things(inventory_id)

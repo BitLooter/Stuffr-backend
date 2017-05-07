@@ -1,14 +1,8 @@
-<!DOCTYPE html>
-
-<html>
-  <head>
-    <title>Stuffr - Details for {{ thing.name }}</title>
-  </head>
-  <body>
-    <h1>Stuffr - Details for {{ thing.name }}</h1>
-    <b>Date created:</b> {{ thing.date_created }}<br />
-    <b>Date last modified:</b> {{ thing.date_modified }}<br />
-    <b>Location:</b> {{ thing.location }}<br />
-    <b>Details:</b> {{ thing.details }}<br />
-  </body>
-</html>
+{% extends "simple/base.html" %}
+{% block content %}
+  <h2>Details for {{ thing.name }}</h2>
+  <b>Date created:</b> {{ thing.date_created }}<br />
+  <b>Date last modified:</b> {{ thing.date_modified }}<br />
+  <b>Location:</b> {{ thing.location }}<br />
+  <b>Details:</b> {{ thing.details }}<br />
+{% endblock %}
