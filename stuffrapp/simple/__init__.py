@@ -38,7 +38,7 @@ def list_inventories():
 def list_things(inventory_id: int):
     """Display things part of given inventory."""
     # TODO: Verify user owns inventory
-    things = models.Thing.get_inventory_things(inventory_id)
+    things = models.Thing.get_things_for_inventory(inventory_id)
     return render_template('simple/things.html', things=things)
 
 

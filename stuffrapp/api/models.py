@@ -66,6 +66,11 @@ class BaseModel(db.Model):
     REQUIRED_FIELDS = set()
 
     @classmethod
+    def id_exists(cls, item_id) -> bool:
+        """Check that a row with the specified ID exists in the database."""
+        return db.session.query(db.exists().where(cls.id == item_id)).scalar()
+
+    @classmethod
     def get_client_entities(cls) -> Set:
         """Return SQLAlchemy entities used by clients."""
         # TODO: Set comprehension?
@@ -182,7 +187,7 @@ class Inventory(BaseModel):
         return fixed_inventories
 
     @classmethod
-    def create_new_inventory(cls, user: User, inventory_data: Mapping) -> None:
+    def create_new_inventory(cls, inventory_data: Mapping, user: User) -> 'Inventory':
         """Create a new inventory based on inventory_data."""
         clean_data = cls.filter_user_input_dict(inventory_data)
         if not cls.REQUIRED_FIELDS.issubset(clean_data):
@@ -199,12 +204,7 @@ class Inventory(BaseModel):
 class Thing(BaseModel):
     """Model for generic thing data."""
 
-    CLIENT_FIELDS = {
-        'id', 'name',
-        'date_created', 'date_modified', 'date_deleted',
-        'location', 'details',
-        'inventory_id'}
-
+    # Columns
     name = db.Column(db.Unicode(length=128), nullable=False)
     date_created = db.Column(db.DateTime, nullable=False,
                              default=datetime.datetime.utcnow)
@@ -217,6 +217,14 @@ class Thing(BaseModel):
     # Relationships
     inventory_id = db.Column(db.Integer, db.ForeignKey('inventory.id'),
                              nullable=False)
+    # Other data
+    CLIENT_FIELDS = {
+        'id', 'name',
+        'date_created', 'date_modified', 'date_deleted',
+        'location', 'details',
+        'inventory_id'}
+    USER_FIELDS = {'name', 'location', 'details'}
+    REQUIRED_FIELDS = {'name'}
 
     def as_dict(self) -> Mapping:
         """Fix datetime columns before creating dict."""
@@ -234,8 +242,10 @@ class Thing(BaseModel):
         return "<Thing name='{}'>".format(self.name)
 
     @classmethod
-    def get_inventory_things(cls, inventory_id: int) -> Sequence:
+    def get_things_for_inventory(cls, inventory_id: int) -> Sequence:
         """Return all things belonging to specified inventory."""
+        if not Inventory.id_exists(inventory_id):
+            raise ValueError('Inventory #{} does not exist'.format(inventory_id))
         things = cls.query.with_entities(*cls.get_client_entities()). \
             filter_by(date_deleted=None, inventory_id=inventory_id).all()
         fixed_things = []
@@ -254,3 +264,54 @@ class Thing(BaseModel):
             filter_by(id=thing_id).all()[0]
         fixed_thing = fix_dict_datetimes(thing._asdict())
         return fixed_thing
+
+    @classmethod
+    def create_new_thing(cls, thing_data: Mapping, inventory_id: int, user_id: int) -> 'Thing':
+        """Create a new thing."""
+        # Sanity check of input
+        if not Inventory.id_exists(inventory_id):
+            raise ValueError('No Inventory with id {}'.format(inventory_id))
+        if Inventory.query.get(inventory_id).user_id != user_id:
+            raise ValueError('Inventory #{} does not belong to user #{}'.format(
+                inventory_id, user_id))
+        clean_data = cls.filter_user_input_dict(thing_data)
+        if not cls.REQUIRED_FIELDS.issubset(clean_data):
+            missing_fields = [f for f in cls.REQUIRED_FIELDS
+                              if f not in thing_data]
+            error = "Required field(s) missing: {}".format(', '.join(missing_fields))
+            raise ValueError(error)
+
+        # Create the thing
+        thing = cls(inventory_id=inventory_id, **clean_data)
+        db.session.add(thing)
+        db.session.commit()
+        return thing
+
+    @classmethod
+    def update_thing(cls, thing_id: int, update_data: Mapping, user_id: int) -> Mapping:
+        """Update thing with new data.
+
+        Afer updating, returns data that changed (including server-managed
+        fields such as date_updated).
+        """
+        thing = cls.query.get(thing_id)
+        if thing.inventory.user_id != user_id:
+            raise ValueError('Thing #{} does not belong to user #{}'.format(
+                thing_id, user_id))
+
+        # Filter only desired fields
+        clean_data = cls.filter_user_input_dict(update_data)
+
+        for field, value in clean_data.items():
+            setattr(thing, field, value)
+        db.session.commit()
+
+    @classmethod
+    def delete_thing(cls, thing_id: int, user_id: int) -> None:
+        """Delete an existing thing."""
+        # TODO: handle thing does not exist
+        thing = cls.query.get(thing_id)
+        if thing.inventory.user_id != user_id:
+            pass
+        thing.date_deleted = datetime.datetime.utcnow()
+        db.session.commit()
