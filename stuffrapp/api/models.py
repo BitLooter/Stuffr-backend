@@ -2,9 +2,10 @@
 
 Some things to note:
 
-* "Client entities" are database fields the client uses (e.g. creation dates).
-* "User entities" are database columns the client can modify (e.g. item names).
-* "Managed entities" are database columns the client cannot modify (e.g. row IDs).
+* "Client" entities are database columns the client uses (e.g. creation dates).
+* "User" entities are database columns the client can modify (e.g. item names).
+* "Managed" entities are database columns the client cannot modify (e.g. row IDs).
+* "Required" fields are columns that require data during creation.
 
 Typically client entities used to filter data sent to the client, and user
 entities are to verify data modification requests from the client. Managed
@@ -39,22 +40,49 @@ def fix_dict_datetimes(the_dict: Mapping) -> Dict:
     return the_dict
 
 
+def get_entity_names(entities: Sequence) -> Set:
+    """Return the column names of all given entities."""
+    return {c.key for c in entities}
+
+
 # Models
 #########
 
 # Models for authentication/authorization
 
 class BaseModel(db.Model):
-    """Base class for all models."""
+    """Base class for all models.
+
+    Subclasses should define CLIENT_FIELDS as a set with the field names as
+    strings.
+    """
 
     __abstract__ = True
 
     id = db.Column(db.Integer, primary_key=True)
 
-    def as_dict(self):
+    CLIENT_FIELDS = set()
+    USER_FIELDS = set()
+    REQUIRED_FIELDS = set()
+
+    @classmethod
+    def get_client_entities(cls) -> Set:
+        """Return SQLAlchemy entities used by clients."""
+        # TODO: Set comprehension?
+        entities = set()
+        for field in cls.CLIENT_FIELDS:
+            entities.add(getattr(cls, field))
+        return entities
+
+    def as_dict(self) -> Mapping:
         """Return fields as a dict."""
         return {c.key: getattr(self, c.key)
                 for c in sqlalchemy.inspect(self).mapper.column_attrs}
+
+    @classmethod
+    def filter_user_input_dict(cls, data) -> Mapping:
+        """Take a dict with model object data and remove non-user fields."""
+        return {k: v for (k, v) in data.items() if k in cls.USER_FIELDS}
 
 
 class DatabaseInfo(BaseModel):
@@ -82,6 +110,8 @@ roles_users = db.Table(
 class User(BaseModel, flask_security.UserMixin):
     """Model for user data."""
 
+    CLIENT_FIELDS = {'id', 'email', 'name_first', 'name_last'}
+
     # Email is used for the username
     email = db.Column(db.Unicode(length=256), nullable=False)
     password = db.Column(db.Unicode(length=128), nullable=False)
@@ -101,7 +131,7 @@ class User(BaseModel, flask_security.UserMixin):
     roles = db.relationship('Role', secondary=roles_users,
                             backref=db.backref('users', lazy='dynamic'))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Basic User data as a string."""
         return "<User email='{}'>".format(self.email)
 
@@ -122,49 +152,58 @@ class Role(BaseModel, flask_security.RoleMixin):
 class Inventory(BaseModel):
     """Model for a collection of things."""
 
+    # Columns
     name = db.Column(db.Unicode(length=128), nullable=False)
     date_created = db.Column(db.DateTime, nullable=False,
                              default=datetime.datetime.utcnow)
     # Relationships
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     things = db.relationship('Thing', backref='inventory', lazy='dynamic')
+    # Other data
+    CLIENT_FIELDS = {'id', 'name', 'date_created'}
+    USER_FIELDS = {'name'}
+    REQUIRED_FIELDS = {'name'}
 
     def __repr__(self) -> str:
         """Basic Inventory data as a string."""
         return "<Inventory name='{}'>".format(self.name)
 
     @classmethod
-    def _get_client_entities(cls) -> Set:
-        """Return SQLAlchemy entities used by clients."""
-        return {cls.id, cls.name, cls.date_created}
-
-    @classmethod
     def get_user_inventories(cls, user_id: int) -> Sequence:
         """Return all inventories belonging to specified user."""
         inventories = cls.query. \
-            with_entities(*(cls._get_client_entities())). \
+            with_entities(*cls.get_client_entities()). \
             filter_by(user_id=user_id).all()
         # SQLite does not keep timezone information, assume UTC if not present
         fixed_inventories = []
         for inventory in inventories:
+            # TODO: probably using wrong _asdict
             fixed_inventories.append(fix_dict_datetimes(inventory._asdict()))
         return fixed_inventories
 
     @classmethod
-    def get_user_things(cls, user_id: int, inventory_id: int) -> Sequence:
-        """Return all things belonging to specified user."""
-        inventories = Thing.query. \
-            with_entities(*(Thing._get_client_entities())). \
-            filter_by(user_id=user_id).all()
-        # SQLite does not keep timezone information, assume UTC if not present
-        fixed_inventories = []
-        for inventory in inventories:
-            fixed_inventories.append(fix_dict_datetimes(inventory._asdict()))
-        return fixed_inventories
+    def create_new_inventory(cls, user: User, inventory_data: Mapping) -> None:
+        """Create a new inventory based on inventory_data."""
+        clean_data = cls.filter_user_input_dict(inventory_data)
+        if not cls.REQUIRED_FIELDS.issubset(clean_data):
+            missing_fields = [f for f in cls.REQUIRED_FIELDS
+                              if f not in inventory_data]
+            error = "Required field(s) missing: {}".format(', '.join(missing_fields))
+            raise ValueError(error)
+        inventory = cls(user=user, **clean_data)
+        db.session.add(inventory)
+        db.session.commit()
+        return inventory
 
 
 class Thing(BaseModel):
     """Model for generic thing data."""
+
+    CLIENT_FIELDS = {
+        'id', 'name',
+        'date_created', 'date_modified', 'date_deleted',
+        'location', 'details',
+        'inventory_id'}
 
     name = db.Column(db.Unicode(length=128), nullable=False)
     date_created = db.Column(db.DateTime, nullable=False,
@@ -195,23 +234,15 @@ class Thing(BaseModel):
         return "<Thing name='{}'>".format(self.name)
 
     @classmethod
-    def _get_client_entities(cls) -> Set:
-        """Return SQLAlchemy entities used by clients."""
-        return {
-            cls.id, cls.name,
-            cls.date_created, cls.date_modified, cls.date_deleted,
-            cls.location, cls.details,
-            cls.inventory_id}
-
-    @classmethod
     def get_inventory_things(cls, inventory_id: int) -> Sequence:
         """Return all things belonging to specified inventory."""
-        things = cls.query.with_entities(*cls._get_client_entities()). \
+        things = cls.query.with_entities(*cls.get_client_entities()). \
             filter_by(date_deleted=None, inventory_id=inventory_id).all()
         fixed_things = []
         for thing in things:
             # SQLite does not keep timezone information, assume UTC
-            # TODO: see if _as_dict is doing redundant timezone fixing
+            # TODO: see if as_dict is doing redundant timezone fixing
+            # TODO: am i even calling the right damn _asdict/as_dict?
             fixed_things.append(fix_dict_datetimes(thing._asdict()))
         return fixed_things
 
@@ -219,7 +250,7 @@ class Thing(BaseModel):
     def get_thing_details(cls, thing_id: int) -> Mapping:
         """Return all information for specified thing."""
         # TODO: Find a cleaner way to do this. get() errors with with_entities
-        thing = cls.query.with_entities(*cls._get_client_entities()). \
+        thing = cls.query.with_entities(*cls.get_client_entities()). \
             filter_by(id=thing_id).all()[0]
         fixed_thing = fix_dict_datetimes(thing._asdict())
         return fixed_thing
