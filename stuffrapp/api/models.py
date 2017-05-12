@@ -22,6 +22,7 @@ import flask_security
 import sqlalchemy
 
 from database import db
+from . import errors
 
 # TODO: Increment this once the database layout settles down
 DATABASE_VERSION = 0
@@ -87,6 +88,9 @@ class BaseModel(db.Model):
     @classmethod
     def filter_user_input_dict(cls, data) -> Mapping:
         """Take a dict with model object data and remove non-user fields."""
+        if type(data) is not dict:
+            error = 'Provided data has type {}, should be a dict'.format(type(data))
+            raise errors.InvalidDataError(error)
         return {k: v for (k, v) in data.items() if k in cls.USER_FIELDS}
 
 
@@ -187,17 +191,21 @@ class Inventory(BaseModel):
         return fixed_inventories
 
     @classmethod
-    def create_new_inventory(cls, inventory_data: Mapping, user: User) -> 'Inventory':
+    def create_new_inventory(cls, inventory_data: Mapping, user_id: int) -> 'Inventory':
         """Create a new inventory based on inventory_data."""
         clean_data = cls.filter_user_input_dict(inventory_data)
         if not cls.REQUIRED_FIELDS.issubset(clean_data):
             missing_fields = [f for f in cls.REQUIRED_FIELDS
                               if f not in inventory_data]
             error = "Required field(s) missing: {}".format(', '.join(missing_fields))
-            raise ValueError(error)
-        inventory = cls(user=user, **clean_data)
+            raise errors.InvalidDataError(error)
+        inventory = cls(user_id=user_id, **clean_data)
         db.session.add(inventory)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except sqlalchemy.exc.IntegrityError as e:
+            error = 'Database error: {}'.format(e.orig)
+            raise errors.InvalidDataError(error)
         return inventory
 
 
@@ -221,8 +229,7 @@ class Thing(BaseModel):
     CLIENT_FIELDS = {
         'id', 'name',
         'date_created', 'date_modified', 'date_deleted',
-        'location', 'details',
-        'inventory_id'}
+        'location', 'details'}
     USER_FIELDS = {'name', 'location', 'details'}
     REQUIRED_FIELDS = {'name'}
 
@@ -242,10 +249,19 @@ class Thing(BaseModel):
         return "<Thing name='{}'>".format(self.name)
 
     @classmethod
-    def get_things_for_inventory(cls, inventory_id: int) -> Sequence:
+    def get_things_for_inventory(cls, inventory_id: int, user_id: int) -> Sequence:
         """Return all things belonging to specified inventory."""
         if not Inventory.id_exists(inventory_id):
-            raise ValueError('Inventory #{} does not exist'.format(inventory_id))
+            error = 'Inventory #{} does not exist'.format(inventory_id)
+            raise errors.ItemNotFoundError(error)
+        inventory_user = Inventory.query.get(inventory_id).user
+        if inventory_user is None:
+            error = 'User #{} does not exist'.format(user_id)
+            raise errors.ItemNotFoundError(error)
+        elif inventory_user.id != user_id:
+            error = 'User #{} does not have permission to get things from Inventory #{}'.format(
+                user_id, inventory_id)
+            raise errors.UserPermissionError(error)
         things = cls.query.with_entities(*cls.get_client_entities()). \
             filter_by(date_deleted=None, inventory_id=inventory_id).all()
         fixed_things = []
@@ -270,21 +286,25 @@ class Thing(BaseModel):
         """Create a new thing."""
         # Sanity check of input
         if not Inventory.id_exists(inventory_id):
-            raise ValueError('No Inventory with id {}'.format(inventory_id))
+            raise errors.ItemNotFoundError('No Inventory with id {}'.format(inventory_id))
         if Inventory.query.get(inventory_id).user_id != user_id:
-            raise ValueError('Inventory #{} does not belong to user #{}'.format(
+            raise errors.UserPermissionError('Inventory #{} does not belong to user #{}'.format(
                 inventory_id, user_id))
         clean_data = cls.filter_user_input_dict(thing_data)
         if not cls.REQUIRED_FIELDS.issubset(clean_data):
             missing_fields = [f for f in cls.REQUIRED_FIELDS
                               if f not in thing_data]
             error = "Required field(s) missing: {}".format(', '.join(missing_fields))
-            raise ValueError(error)
+            raise errors.InvalidDataError(error)
 
         # Create the thing
         thing = cls(inventory_id=inventory_id, **clean_data)
         db.session.add(thing)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except sqlalchemy.exc.IntegrityError as e:
+            error = 'Database error: {}'.format(e.orig)
+            raise errors.InvalidDataError(error)
         return thing
 
     @classmethod
@@ -295,23 +315,40 @@ class Thing(BaseModel):
         fields such as date_updated).
         """
         thing = cls.query.get(thing_id)
-        if thing.inventory.user_id != user_id:
-            raise ValueError('Thing #{} does not belong to user #{}'.format(
-                thing_id, user_id))
+        if thing is None:
+            error = 'Thing #{} does not exist'.format(thing_id)
+            raise errors.ItemNotFoundError(error)
+        elif thing.inventory.user_id != user_id:
+            error = 'User #{} does not have permission to modify Thing #{}'.format(
+                user_id, thing_id)
+            raise errors.UserPermissionError(error)
 
         # Filter only desired fields
         clean_data = cls.filter_user_input_dict(update_data)
 
         for field, value in clean_data.items():
             setattr(thing, field, value)
-        db.session.commit()
+        try:
+            db.session.commit()
+        except sqlalchemy.exc.IntegrityError as e:
+            error = 'Database error: {}'.format(e.orig)
+            raise errors.InvalidDataError(error)
+
+        # Get the modified data
+        clean_data.update({'date_modified': thing.date_modified})
+        return clean_data
 
     @classmethod
     def delete_thing(cls, thing_id: int, user_id: int) -> None:
         """Delete an existing thing."""
         # TODO: handle thing does not exist
         thing = cls.query.get(thing_id)
-        if thing.inventory.user_id != user_id:
-            pass
+        if thing is None:
+            error = 'Thing #{} does not exist'.format(thing_id)
+            raise errors.ItemNotFoundError(error)
+        elif thing.inventory.user_id != user_id:
+            error = 'User #{} does not have permission to delete Thing #{}'.format(
+                user_id, thing_id)
+            raise errors.UserPermissionError(error)
         thing.date_deleted = datetime.datetime.utcnow()
         db.session.commit()

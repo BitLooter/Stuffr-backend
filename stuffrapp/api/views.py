@@ -9,6 +9,7 @@ from flask_security import current_user
 from flask_security.decorators import auth_token_required
 
 from . import models
+from . import errors
 
 bp = Blueprint('stuffrapi', __name__, template_folder='templates')
 
@@ -95,23 +96,30 @@ def post_inventory() -> ViewReturnType:
     """POST an inventory to the database."""
     request_data = request.get_json()
     # TODO: Error handling - what if database is down?
-    inventory = models.Inventory.create_new_inventory(request_data, current_user)
-    initialized_data = {k: v for (k, v) in inventory.as_dict().items()
-                        if k in INVENTORY_MANAGED_FIELDS}
-    return json_response(initialized_data, HTTPStatus.CREATED)
+    try:
+        inventory = models.Inventory.create_new_inventory(request_data, current_user.id)
+    except errors.InvalidDataError as e:
+        response = error_response(e.args, status_code=HTTPStatus.BAD_REQUEST)
+    else:
+        initialized_data = {k: v for (k, v) in inventory.as_dict().items()
+                            if k in INVENTORY_MANAGED_FIELDS}
+        response = json_response(initialized_data, HTTPStatus.CREATED)
+    return response
 
 
 @bp.route('/inventories/<int:inventory_id>/things')
 @auth_token_required
 def get_things(inventory_id: int=None) -> ViewReturnType:
     """Provide a list of things from the database."""
-    # Check that current user owns inventory
-    if current_user != models.Inventory.query.get(inventory_id).user:
-        return error_response('Inventory does not belong to user',
-                              status_code=HTTPStatus.FORBIDDEN)
-
-    things = models.Thing.get_things_for_inventory(inventory_id)
-    return json_response(things)
+    try:
+        things = models.Thing.get_things_for_inventory(inventory_id, current_user.id)
+    except errors.ItemNotFoundError as e:
+        response = error_response(e.args, status_code=HTTPStatus.NOT_FOUND)
+    except errors.UserPermissionError as e:
+        response = error_response(e.args, status_code=HTTPStatus.FORBIDDEN)
+    else:
+        response = json_response(things)
+    return response
 
 
 @bp.route('/inventories/<int:inventory_id>/things', methods=['POST'])
@@ -121,10 +129,19 @@ def post_thing(inventory_id: int) -> ViewReturnType:
     request_data = request.get_json()
 
     # TODO: Error handling - what if database is down?
-    thing = models.Thing.create_new_thing(request_data, inventory_id, current_user.id)
-    initialized_data = {k: v for (k, v) in thing.as_dict().items()
-                        if k in THING_MANAGED_FIELDS}
-    return json_response(initialized_data, HTTPStatus.CREATED)
+    try:
+        thing = models.Thing.create_new_thing(request_data, inventory_id, current_user.id)
+    except errors.ItemNotFoundError as e:
+        response = error_response(e.args, status_code=HTTPStatus.NOT_FOUND)
+    except errors.UserPermissionError as e:
+        response = error_response(e.args, status_code=HTTPStatus.FORBIDDEN)
+    except errors.InvalidDataError as e:
+        response = error_response(e.args, status_code=HTTPStatus.BAD_REQUEST)
+    else:
+        initialized_data = {k: v for (k, v) in thing.as_dict().items()
+                            if k in THING_MANAGED_FIELDS}
+        response = json_response(initialized_data, HTTPStatus.CREATED)
+    return response
 
 
 @bp.route('/things/<int:thing_id>', methods=['PUT'])
@@ -136,8 +153,17 @@ def update_thing(thing_id: int, inventory_id: int=None) -> ViewReturnType:
     inventory_id is ignored, only thing_id is needed.
     """
     request_data = request.get_json()
-    modified_data = models.Thing.update_thing(thing_id, request_data, current_user.id)
-    return json_response(modified_data)
+    try:
+        modified_data = models.Thing.update_thing(thing_id, request_data, current_user.id)
+    except errors.ItemNotFoundError as e:
+        response = error_response(e.args, status_code=HTTPStatus.NOT_FOUND)
+    except errors.UserPermissionError as e:
+        response = error_response(e.args, status_code=HTTPStatus.FORBIDDEN)
+    except errors.InvalidDataError as e:
+        response = error_response(e.args, status_code=HTTPStatus.BAD_REQUEST)
+    else:
+        response = json_response(modified_data)
+    return response
 
 
 @bp.route('/things/<int:thing_id>', methods=['DELETE'])
@@ -148,5 +174,11 @@ def delete_thing(thing_id: int, inventory_id: int=None) -> ViewReturnType:
 
     inventory_id is ignored, only thing_id is needed.
     """
-    models.Thing.delete_thing(thing_id, current_user.id)
-    return NO_CONTENT
+    response = NO_CONTENT
+    try:
+        models.Thing.delete_thing(thing_id, current_user.id)
+    except errors.ItemNotFoundError as e:
+        response = error_response(e.args, status_code=HTTPStatus.NOT_FOUND)
+    except errors.UserPermissionError as e:
+        response = error_response(e.args, status_code=HTTPStatus.FORBIDDEN)
+    return response

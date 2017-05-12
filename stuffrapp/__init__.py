@@ -51,7 +51,8 @@ def create_app(config_override: Mapping={}) -> Flask:
     db.init_app(app)
     security = Security(app, user_store, confirm_register_form=StuffrRegisterForm)
     security._state.unauthorized_handler(api_unauthorized)
-    # TODO: Better initial setup
+
+    # Initial database setup
     with app.app_context():
         if app.config['STUFFR_CREATE_TABLES']:
             db.create_all()
