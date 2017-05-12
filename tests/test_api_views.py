@@ -27,8 +27,8 @@ for u in range(2):
             thing_data = {'name': 'Test Thing U{}I{}{}'.format(u, i, ident),
                           'date_created': TEST_TIME,
                           'date_modified': TEST_TIME,
-                          'description': '{} description'.format(ident),
-                          'notes': '{} notes'.format(ident)}
+                          'location': '{} location'.format(ident),
+                          'details': '{} details'.format(ident)}
             inventory_data['things'].append(thing_data)
         user_data['inventories'].append(inventory_data)
     TEST_DATA.append(user_data)
@@ -250,12 +250,11 @@ class TestPostInventory(CommonTests, ThingPostMixin):
     method = 'post'
     new_inventory_data = {
         'name': 'NEWINVENTORY'}
+    response_fields = {'id', 'date_created'}
 
     def test_post_inventory(self, authenticated_client):
         """Test POSTing inventories."""
         url = url_for(self.view_name, **self.view_params)
-        # Fields returned in the response
-        response_fields = {'id', 'date_created'}
         # Fields added by the backend
         server_fields = {'user_id'}
 
@@ -265,14 +264,42 @@ class TestPostInventory(CommonTests, ThingPostMixin):
 
         new_inventory_response = response.json
         assert isinstance(new_inventory_response, dict)
-        assert set(new_inventory_response) == response_fields
+        assert set(new_inventory_response) == self.response_fields
 
         created_inventory = models.Inventory.query.get(new_inventory_response['id'])
         assert created_inventory is not None
         created_inventory_dict = created_inventory.as_dict()
         # Remove fields added by backend
         created_inventory_dict = {k: created_inventory_dict[k] for k in created_inventory_dict
-                                  if k not in response_fields.union(server_fields)}
+                                  if k not in self.response_fields.union(server_fields)}
+        assert self.new_inventory_data == created_inventory_dict
+
+    def test_post_inventory_with_extra_data(self, authenticated_client):
+        """Test POSTing inventories with nonexistant or non-user-editable fields."""
+        url = url_for(self.view_name, **self.view_params)
+        # Fields added by the backend
+        server_fields = {'user_id'}
+
+        extra_inventory_data = self.new_inventory_data.copy()
+        extra_inventory_data['not_a_real_field'] = 'Will be removed from input'
+        extra_inventory_data['date_created'] = TEST_TIME.isoformat()
+
+        response = post_as_json(authenticated_client.post, url, extra_inventory_data)
+        assert response.status_code == HTTPStatus.CREATED
+        assert response.headers['Content-Type'] == 'application/json'
+
+        new_inventory_response = response.json
+        assert isinstance(new_inventory_response, dict)
+        assert set(new_inventory_response) == self.response_fields
+
+        created_inventory = models.Inventory.query.get(new_inventory_response['id'])
+        assert created_inventory is not None
+        # Time specified above should have been ignored
+        assert created_inventory.date_created != TEST_TIME
+        created_inventory_dict = created_inventory.as_dict()
+        # Remove fields added by backend
+        created_inventory_dict = {k: created_inventory_dict[k] for k in created_inventory_dict
+                                  if k not in self.response_fields.union(server_fields)}
         assert self.new_inventory_data == created_inventory_dict
 
     def test_post_empty_object(self, authenticated_client):
@@ -330,6 +357,7 @@ class TestGetThings(CommonTests):
                 expected_thing['date_created'].isoformat()
             expected_thing['date_modified'] = \
                 expected_thing['date_modified'].isoformat()
+            del expected_thing['inventory_id']
             expected_response.append(expected_thing)
 
         response = authenticated_client.get(url)
@@ -374,8 +402,9 @@ class TestPostThing(CommonTests, ThingPostMixin):
     method = 'post'
     new_thing_data = {
         'name': 'NEWTHING',
-        'description': "Test new description",
-        'notes': "Test new notes"}
+        'location': "Test new location",
+        'details': "Test new details"}
+    response_fields = {'id', 'date_created', 'date_modified', 'date_deleted'}
 
     def setup_method(self):
         """Specify inventory ID."""
@@ -384,8 +413,6 @@ class TestPostThing(CommonTests, ThingPostMixin):
     def test_post_thing(self, authenticated_client):
         """Test POSTing Things."""
         url = url_for(self.view_name, **self.view_params)
-        # Fields returned in the response
-        response_fields = {'id', 'date_created', 'date_modified'}
         # Fields part of the full thing data but not returned
         server_fields = {'date_deleted', 'inventory_id'}
 
@@ -395,14 +422,42 @@ class TestPostThing(CommonTests, ThingPostMixin):
 
         new_thing_response = response.json
         assert isinstance(new_thing_response, dict)
-        assert set(new_thing_response) == response_fields
+        assert set(new_thing_response) == self.response_fields
 
         created_thing = models.Thing.query.get(new_thing_response['id'])
         assert created_thing is not None
         created_thing_dict = created_thing.as_dict()
         # Remove fields added by database
         created_thing_dict = {k: created_thing_dict[k] for k in created_thing_dict
-                              if k not in response_fields.union(server_fields)}
+                              if k not in self.response_fields.union(server_fields)}
+        assert self.new_thing_data == created_thing_dict
+
+    def test_post_thing_with_extra_data(self, authenticated_client):
+        """Test POSTing Things with nonexistant or non-user-editable fields."""
+        url = url_for(self.view_name, **self.view_params)
+        # Fields part of the full thing data but not returned
+        server_fields = {'date_deleted', 'inventory_id'}
+
+        extra_thing_data = self.new_thing_data.copy()
+        extra_thing_data['not_a_real_field'] = 'Will be removed from input'
+        extra_thing_data['date_created'] = TEST_TIME.isoformat()
+
+        response = post_as_json(authenticated_client.post, url, extra_thing_data)
+        assert response.status_code == HTTPStatus.CREATED
+        assert response.headers['Content-Type'] == 'application/json'
+
+        new_thing_response = response.json
+        assert isinstance(new_thing_response, dict)
+        assert set(new_thing_response) == self.response_fields
+
+        created_thing = models.Thing.query.get(new_thing_response['id'])
+        assert created_thing is not None
+        # Time specified above should have been ignored
+        assert created_thing.date_created != TEST_TIME
+        created_thing_dict = created_thing.as_dict()
+        # Remove fields added by database
+        created_thing_dict = {k: created_thing_dict[k] for k in created_thing_dict
+                              if k not in self.response_fields.union(server_fields)}
         assert self.new_thing_data == created_thing_dict
 
     def test_post_empty_object(self, authenticated_client):
@@ -459,16 +514,17 @@ class TestPutThing(CommonTests, ThingPostMixin):
         url = url_for(self.view_name, **self.view_params)
         original_thing = models.Thing.query.get(TEST_THING_ID)
         expected_data = original_thing.as_dict()
-        modified_fields = {'name': expected_data['name'],
-                           'description': expected_data['description'],
-                           'notes': expected_data['notes']}
-        expected_data.update(modified_fields)
+        update_data = {'name': 'CHANGED NAME',
+                       'location': 'CHANGED LOCATION',
+                       'details': 'CHANGED DETAILS'}
+        expected_data.update(update_data)
 
-        response = post_as_json(authenticated_client.put, url, modified_fields)
-        assert response.status_code == HTTPStatus.NO_CONTENT
+        response = post_as_json(authenticated_client.put, url, update_data)
+        assert response.status_code == HTTPStatus.OK
 
         modified_data = models.Thing.query.get(TEST_THING_ID).as_dict()
-        # Do not compare modification date
+        # Check modification date changed but don't bother comparing
+        assert modified_data['date_modified'] > TEST_TIME
         del modified_data['date_modified'], expected_data['date_modified']
         assert modified_data == expected_data
 
