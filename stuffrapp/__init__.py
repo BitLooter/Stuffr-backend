@@ -15,7 +15,7 @@ from flask_security.forms import ConfirmRegisterForm, StringField
 
 from database import db
 from .api import models
-from .api.views import bp as blueprint_api, api_unauthorized
+from .api.views import bp as blueprint_api, api_unauthenticated_handler
 from .simple import bp as blueprint_simple
 
 logger = None
@@ -50,7 +50,7 @@ def create_app(config_override: Mapping={}) -> Flask:
 
     db.init_app(app)
     security = Security(app, user_store, confirm_register_form=StuffrRegisterForm)
-    security._state.unauthorized_handler(api_unauthorized)
+    security._state.unauthorized_handler(api_unauthenticated_handler)
 
     # Initial database setup
     with app.app_context():

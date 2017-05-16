@@ -50,7 +50,7 @@ def error_response(message: str, status_code: int=HTTPStatus.BAD_REQUEST) -> Vie
     return json_response({'message': message}, status_code=status_code)
 
 
-def api_unauthorized() -> ViewReturnType:
+def api_unauthenticated_handler() -> ViewReturnType:
     """Response handler for unauthenticated requests to protected API calls."""
     # TODO: Fix logging
     # logger.warning('Unauthenticated request')
