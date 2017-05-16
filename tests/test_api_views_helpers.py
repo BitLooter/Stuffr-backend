@@ -5,9 +5,7 @@ from http import HTTPStatus
 import pytest
 
 from stuffrapp.api import views
-
-TEST_TIME = datetime.datetime(2011, 11, 11, 11, 11, 11,
-                              tzinfo=datetime.timezone.utc)
+from .sample_data import TEST_TIME
 
 
 def test_serialize_object():

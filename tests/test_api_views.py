@@ -9,29 +9,9 @@ from flask import url_for
 from database import db
 from stuffrapp.api import models
 from stuffrapp import user_store
+from .sample_data import TEST_DATA, TEST_TIME, TEST_TIME_COMPARE
 
-TEST_TIME = datetime.datetime(2011, 11, 11, 11, 11, 11,
-                              tzinfo=datetime.timezone.utc)
-# Generate test data
-TEST_DATA = []
-for u in range(2):
-    user_data = {'name_first': 'User u{}'.format(u),
-                 'name_last': 'User U{}'.format(u),
-                 'email': 'email{}@example.com'.format(u),
-                 'password': 'testing',
-                 'inventories': []}
-    for i in range(2):
-        inventory_data = {'name': 'Test Inventory U{}I{}'.format(u, i), 'things': []}
-        for t in range(2):
-            ident = 'T{}'.format(t)
-            thing_data = {'name': 'Test Thing U{}I{}{}'.format(u, i, ident),
-                          'date_created': TEST_TIME,
-                          'date_modified': TEST_TIME,
-                          'location': '{} location'.format(ident),
-                          'details': '{} details'.format(ident)}
-            inventory_data['things'].append(thing_data)
-        user_data['inventories'].append(inventory_data)
-    TEST_DATA.append(user_data)
+
 TEST_USER_ID = None
 TEST_INVENTORY_ID = None
 TEST_THING_ID = None
@@ -109,6 +89,7 @@ def authenticated_client(client):
 class CommonTests:
     """Base class with tests common to all views."""
 
+    item_id = None
     view_params = {}
 
     def test_unauthenticated(self, client):
@@ -120,8 +101,14 @@ class CommonTests:
         assert response.headers['Content-Type'] == 'application/json'
 
 
-class ThingPostMixin:
-    """Mixin to perform common tests for POST/PUT of things."""
+class SubmitRequestMixin:
+    """Mixin to perform common tests for POST/PUT requests.
+
+    Note that these tests assume the model has a required column 'name', and a
+    non-user-editable column 'date_created'. If you are testing views for
+    models that do not have these columns, these tests will need to be modified
+    or overridden to work with those views.
+    """
 
     def test_malformed_json(self, authenticated_client):
         """Test response to an invalid JSON string."""
@@ -136,17 +123,17 @@ class ThingPostMixin:
         """Test None/NULL passed as data."""
         url = url_for(self.view_name, **self.view_params)
         request_func = getattr(authenticated_client, self.method)
-        null_thing = None
-        response = post_as_json(request_func, url, null_thing,
+        null_item = None
+        response = post_as_json(request_func, url, null_item,
                                 method=self.method)
         assert response.status_code == HTTPStatus.BAD_REQUEST
 
-    def test_list_thing(self, authenticated_client):
-        """Thing is a list instead of an object."""
+    def test_list_item(self, authenticated_client):
+        """Item is a list instead of an object."""
         url = url_for(self.view_name, **self.view_params)
         request_func = getattr(authenticated_client, self.method)
-        list_thing = []
-        response = post_as_json(request_func, url, list_thing,
+        list_item = []
+        response = post_as_json(request_func, url, list_item,
                                 method=self.method)
         assert response.status_code == HTTPStatus.BAD_REQUEST
 
@@ -154,31 +141,36 @@ class ThingPostMixin:
         """Non-nullable field is null."""
         url = url_for(self.view_name, **self.view_params)
         request_func = getattr(authenticated_client, self.method)
-        null_field_thing = {
+        null_field_item = {
             'name': None
         }
-        response = post_as_json(request_func, url, null_field_thing,
+        response = post_as_json(request_func, url, null_field_item,
                                 method=self.method)
         assert response.status_code == HTTPStatus.BAD_REQUEST
 
     def test_ignore_nonuser_fields(self, authenticated_client):
         """Check that a view does not modify non-user data."""
         url = url_for(self.view_name, **self.view_params)
-        server_field_thing = {
-            'name': 'Ignore other field',
-            'date_deleted': TEST_TIME.isoformat()
+        new_name = 'Ignore other field'
+        server_field_item = {
+            'name': new_name,
+            'date_created': TEST_TIME_COMPARE.isoformat()
         }
         request_func = getattr(authenticated_client, self.method)
-        response = post_as_json(request_func, url, server_field_thing)
+        response = post_as_json(request_func, url, server_field_item)
         assert response.status_code < 300
 
-        thing_id = TEST_THING_ID
-        if response.status_code != HTTPStatus.NO_CONTENT:
+        # Use the returned item ID if a new object was created
+        if self.method == 'post':
             if 'id' in response.json:
-                thing_id = response.json['id']
+                item_id = response.json['id']
+        else:
+            item_id = self.item_id
 
-        modified_thing = models.Thing.query.get(thing_id)
-        assert modified_thing.date_deleted is None
+        modified_item = self.model.query.get(item_id)
+        modified_item_dict = modified_item.as_dict()
+        assert modified_item.name == new_name
+        assert modified_item_dict['date_created'] != TEST_TIME_COMPARE
 
 
 class TestGetUserInfo(CommonTests):
@@ -243,7 +235,7 @@ class TestGetInventories(CommonTests):
         assert expected_response == [], "Unknown inventories in database"
 
 
-class TestPostInventory(CommonTests, ThingPostMixin):
+class TestPostInventory(CommonTests, SubmitRequestMixin):
     """Tests for adding inventories."""
 
     view_name = 'stuffrapi.post_inventory'
@@ -251,6 +243,7 @@ class TestPostInventory(CommonTests, ThingPostMixin):
     new_inventory_data = {
         'name': 'NEWINVENTORY'}
     response_fields = {'id', 'date_created'}
+    model = models.Inventory
 
     def test_post_inventory(self, authenticated_client):
         """Test POSTing inventories."""
@@ -325,6 +318,7 @@ class TestGetThings(CommonTests):
 
     view_name = 'stuffrapi.get_things'
     method = 'get'
+    model = models.Thing
 
     def setup_method(self):
         """Specify inventory ID.
@@ -395,7 +389,7 @@ class TestGetThings(CommonTests):
         assert response.status_code == HTTPStatus.FORBIDDEN
 
 
-class TestPostThing(CommonTests, ThingPostMixin):
+class TestPostThing(CommonTests, SubmitRequestMixin):
     """Tests for adding things."""
 
     view_name = 'stuffrapi.post_thing'
@@ -405,6 +399,7 @@ class TestPostThing(CommonTests, ThingPostMixin):
         'location': "Test new location",
         'details': "Test new details"}
     response_fields = {'id', 'date_created', 'date_modified', 'date_deleted'}
+    model = models.Thing
 
     def setup_method(self):
         """Specify inventory ID."""
@@ -499,14 +494,16 @@ class TestPostThing(CommonTests, ThingPostMixin):
         assert response.status_code == HTTPStatus.FORBIDDEN
 
 
-class TestPutThing(CommonTests, ThingPostMixin):
+class TestPutThing(CommonTests, SubmitRequestMixin):
     """Tests for updating things."""
 
     view_name = 'stuffrapi.update_thing'
     method = 'put'
+    model = models.Thing
 
     def setup_method(self, method):
         """Specify inventory ID."""
+        self.item_id = TEST_THING_ID
         self.view_params = {'thing_id': TEST_THING_ID}
 
     def test_update_thing(self, authenticated_client):
