@@ -1,28 +1,26 @@
 """Test cases for Stuffr models."""
 
 import datetime
+import pytest
 
 from stuffrapp.api import models
-from .sample_data import TEST_TIME
+from tests import conftest
 
 
-def test_flask_stuff():
-    """Test Thing model."""
-    # FIXME: this test isn't really necessary, i should be testing the class methods
-    thing = models.Thing(name='hello', location='loc', details='dets')
-    assert thing.name == 'hello'
-    assert thing.location == 'loc'
-    assert thing.details == 'dets'
+pytestmark = pytest.mark.api_models
+
+# The tests
+#############
 
 
 def test_fix_dict_datetimes():
     """Test function that sets datetimes in a dict without offsets to UTC."""
     PST_OFFSET = -8
-    PST_TIME = TEST_TIME.replace(tzinfo=datetime.timezone(
+    PST_TIME = conftest.TEST_TIME.replace(tzinfo=datetime.timezone(
         datetime.timedelta(hours=PST_OFFSET)))
-    NOTZ_TIME = TEST_TIME.replace(tzinfo=None)
+    NOTZ_TIME = conftest.TEST_TIME.replace(tzinfo=None)
     test_dict = {
-        'normal_time': TEST_TIME,
+        'normal_time': conftest.TEST_TIME,
         'pst_time': PST_TIME,
         'notz_time': NOTZ_TIME,
         'not_datetime': 4
@@ -33,3 +31,21 @@ def test_fix_dict_datetimes():
         datetime.timedelta(hours=PST_OFFSET))
     assert fixed_thing['notz_time'].tzinfo == datetime.timezone.utc
     assert fixed_thing['not_datetime'] == 4
+
+
+@pytest.mark.usefixtures('setupdb')
+class ModelTestBase:
+    """Base class for all model test classes."""
+
+    pass
+
+
+class TestCommonBase(ModelTestBase):
+    """Tests for the models' common base class."""
+
+    def test_check_id_exists(self):
+        """Test that a thing with a given ID exists in the database."""
+        thing_exists = models.Thing.id_exists(conftest.TEST_THING_ID)
+        assert thing_exists
+        bad_thing_exists = models.Thing.id_exists(conftest.TEST_THING_BAD_ID)
+        assert not bad_thing_exists

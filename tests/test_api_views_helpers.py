@@ -5,7 +5,7 @@ from http import HTTPStatus
 import pytest
 
 from stuffrapp.api import views
-from .sample_data import TEST_TIME
+from tests.conftest import TEST_TIME
 
 
 def test_serialize_object():
