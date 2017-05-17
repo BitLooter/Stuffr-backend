@@ -278,16 +278,9 @@ class TestGetThings(CommonTests):
     """Tests for getting things."""
 
     view_name = 'stuffrapi.get_things'
+    view_params = property(lambda _: {'inventory_id': conftest.TEST_INVENTORY_ID})
     method = 'get'
     model = models.Thing
-
-    def setup_method(self):
-        """Specify inventory ID.
-
-        Params must be specified here as they are unknown until the setup_db
-        fixture is run.
-        """
-        self.view_params = {'inventory_id': conftest.TEST_INVENTORY_ID}
 
     def test_get_things(self, authenticated_client):
         """Test GETing Things."""
@@ -352,6 +345,7 @@ class TestPostThing(CommonTests, SubmitRequestMixin):
     """Tests for adding things."""
 
     view_name = 'stuffrapi.post_thing'
+    view_params = property(lambda _: {'inventory_id': conftest.TEST_INVENTORY_ID})
     method = 'post'
     new_thing_data = {
         'name': 'NEWTHING',
@@ -359,10 +353,6 @@ class TestPostThing(CommonTests, SubmitRequestMixin):
         'details': "Test new details"}
     response_fields = {'id', 'date_created', 'date_modified', 'date_deleted'}
     model = models.Thing
-
-    def setup_method(self):
-        """Specify inventory ID."""
-        self.view_params = {'inventory_id': conftest.TEST_INVENTORY_ID}
 
     def test_post_thing(self, authenticated_client):
         """Test POSTing Things."""
@@ -455,13 +445,10 @@ class TestPutThing(CommonTests, SubmitRequestMixin):
     """Tests for updating things."""
 
     view_name = 'stuffrapi.update_thing'
+    view_params = property(lambda _: {'thing_id': conftest.TEST_THING_ID})
+    item_id = property(lambda _: conftest.TEST_THING_ID)
     method = 'put'
     model = models.Thing
-
-    def setup_method(self, method):
-        """Specify inventory ID."""
-        self.item_id = conftest.TEST_THING_ID
-        self.view_params = {'thing_id': conftest.TEST_THING_ID}
 
     def test_update_thing(self, authenticated_client):
         """Test PUT (updating) a thing."""
@@ -517,11 +504,8 @@ class TestDeleteThing(CommonTests):
     """Tests for deleting things."""
 
     view_name = 'stuffrapi.delete_thing'
+    view_params = property(lambda _: {'thing_id': conftest.TEST_THING_ID})
     method = 'delete'
-
-    def setup_method(self):
-        """Specify URL params."""
-        self.view_params = {'thing_id': conftest.TEST_THING_ID}
 
     def test_delete_thing(self, authenticated_client):
         """Test DELETE a thing."""
