@@ -17,28 +17,16 @@ practice.
 """
 
 import datetime
-from typing import Dict, Mapping, Sequence, Set
+from typing import List, Mapping, Sequence, Set
 import flask_security
 import sqlalchemy
+from sqlalchemy_utc import UtcDateTime
 
 from database import db
 from . import errors
 
 # TODO: Increment this once the database layout settles down
 DATABASE_VERSION = 0
-
-
-def fix_dict_datetimes(the_dict: Mapping) -> Dict:
-    """Ensure datetimes have timezones in a dict from SQLAlchemy.
-
-    Necessary because some databases (e.g. SQLite) do not store timezone
-    information. Stuffr uses UTC in the database, so this just adds the UTC
-    timezone to the datetime fields.
-    """
-    for k, v in the_dict.items():
-        if type(v) is datetime.datetime and v.tzinfo is None:
-            the_dict[k] = v.replace(tzinfo=datetime.timezone.utc)
-    return the_dict
 
 
 def get_entity_names(entities: Sequence) -> Set:
@@ -66,6 +54,14 @@ class BaseModel(db.Model):
     USER_FIELDS = set()
     REQUIRED_FIELDS = set()
 
+    def _asdict(self) -> Mapping:
+        """Return fields as a dict.
+
+        Named as _asdict to match SQLAlchemy query results.
+        """
+        return {c.key: getattr(self, c.key)
+                for c in sqlalchemy.inspect(self).mapper.column_attrs}
+
     @classmethod
     def id_exists(cls, item_id) -> bool:
         """Check that a row with the specified ID exists in the database."""
@@ -79,11 +75,6 @@ class BaseModel(db.Model):
         for field in cls.CLIENT_FIELDS:
             entities.add(getattr(cls, field))
         return entities
-
-    def as_dict(self) -> Mapping:
-        """Return fields as a dict."""
-        return {c.key: getattr(self, c.key)
-                for c in sqlalchemy.inspect(self).mapper.column_attrs}
 
     @classmethod
     def filter_user_input_dict(cls, data) -> Mapping:
@@ -99,8 +90,8 @@ class DatabaseInfo(BaseModel):
 
     creator_name = db.Column(db.Unicode(length=32), nullable=False)
     creator_version = db.Column(db.Unicode(length=32), nullable=False)
-    date_created = db.Column(db.DateTime, nullable=False,
-                             default=datetime.datetime.utcnow)
+    date_created = db.Column(UtcDateTime, nullable=False,
+                             default=datetime.datetime.now(datetime.timezone.utc))
     # Database schema version - value incremented when a breaking change is made
     database_version = db.Column(db.Integer, nullable=False,
                                  default=DATABASE_VERSION)
@@ -117,7 +108,11 @@ roles_users = db.Table(
 
 
 class User(BaseModel, flask_security.UserMixin):
-    """Model for user data."""
+    """Model for user data.
+
+    Note that this model is managed by Flask-Security, so there is not much
+    need for data access methods.
+    """
 
     CLIENT_FIELDS = {'id', 'email', 'name_first', 'name_last'}
 
@@ -126,12 +121,12 @@ class User(BaseModel, flask_security.UserMixin):
     password = db.Column(db.Unicode(length=128), nullable=False)
     name_first = db.Column(db.Unicode(length=128), nullable=False)
     name_last = db.Column(db.Unicode(length=128), nullable=False)
-    date_created = db.Column(db.DateTime, nullable=False,
-                             default=datetime.datetime.utcnow)
+    date_created = db.Column(UtcDateTime, nullable=False,
+                             default=datetime.datetime.now(datetime.timezone.utc))
     active = db.Column(db.Boolean)
-    confirmed_at = db.Column(db.DateTime)
-    last_login_at = db.Column(db.DateTime)
-    current_login_at = db.Column(db.DateTime)
+    confirmed_at = db.Column(UtcDateTime)
+    last_login_at = db.Column(UtcDateTime)
+    current_login_at = db.Column(UtcDateTime)
     last_login_ip = db.Column(db.Unicode(length=45))
     current_login_ip = db.Column(db.Unicode(length=45))
     login_count = db.Column(db.Integer)
@@ -163,8 +158,8 @@ class Inventory(BaseModel):
 
     # Columns
     name = db.Column(db.Unicode(length=128), nullable=False)
-    date_created = db.Column(db.DateTime, nullable=False,
-                             default=datetime.datetime.utcnow)
+    date_created = db.Column(UtcDateTime, nullable=False,
+                             default=datetime.datetime.now(datetime.timezone.utc))
     # Relationships
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     things = db.relationship('Thing', backref='inventory', lazy='dynamic')
@@ -178,17 +173,10 @@ class Inventory(BaseModel):
         return "<Inventory name='{}'>".format(self.name)
 
     @classmethod
-    def get_user_inventories(cls, user_id: int) -> Sequence:
+    def get_user_inventories(cls, user_id: int) -> List['Inventory']:
         """Return all inventories belonging to specified user."""
-        inventories = cls.query. \
-            with_entities(*cls.get_client_entities()). \
-            filter_by(user_id=user_id).all()
-        # SQLite does not keep timezone information, assume UTC if not present
-        fixed_inventories = []
-        for inventory in inventories:
-            # TODO: probably using wrong _asdict
-            fixed_inventories.append(fix_dict_datetimes(inventory._asdict()))
-        return fixed_inventories
+        inventories = cls.query.filter_by(user_id=user_id).all()
+        return inventories
 
     @classmethod
     def create_new_inventory(cls, inventory_data: Mapping, user_id: int) -> 'Inventory':
@@ -214,12 +202,12 @@ class Thing(BaseModel):
 
     # Columns
     name = db.Column(db.Unicode(length=128), nullable=False)
-    date_created = db.Column(db.DateTime, nullable=False,
-                             default=datetime.datetime.utcnow)
-    date_modified = db.Column(db.DateTime, nullable=False,
-                              default=datetime.datetime.utcnow,
-                              onupdate=datetime.datetime.utcnow)
-    date_deleted = db.Column(db.DateTime)
+    date_created = db.Column(UtcDateTime, nullable=False,
+                             default=datetime.datetime.now(datetime.timezone.utc))
+    date_modified = db.Column(UtcDateTime, nullable=False,
+                              default=datetime.datetime.now(datetime.timezone.utc),
+                              onupdate=datetime.datetime.now(datetime.timezone.utc))
+    date_deleted = db.Column(UtcDateTime)
     location = db.Column(db.Unicode(length=128))
     details = db.Column(db.UnicodeText)
     # Relationships
@@ -232,17 +220,6 @@ class Thing(BaseModel):
         'location', 'details'}
     USER_FIELDS = {'name', 'location', 'details'}
     REQUIRED_FIELDS = {'name'}
-
-    def as_dict(self) -> Mapping:
-        """Fix datetime columns before creating dict."""
-        # SQLite does not keep timezone information, assume UTC
-        if self.date_created.tzinfo is None:
-            self.date_created = self.date_created.replace(
-                tzinfo=datetime.timezone.utc)
-        if self.date_modified.tzinfo is None:
-            self.date_modified = self.date_modified.replace(
-                tzinfo=datetime.timezone.utc)
-        return BaseModel.as_dict(self)
 
     def __repr__(self) -> str:
         """Basic Thing data as a string."""
@@ -267,9 +244,7 @@ class Thing(BaseModel):
         fixed_things = []
         for thing in things:
             # SQLite does not keep timezone information, assume UTC
-            # TODO: see if as_dict is doing redundant timezone fixing
-            # TODO: am i even calling the right damn _asdict/as_dict?
-            fixed_things.append(fix_dict_datetimes(thing._asdict()))
+            fixed_things.append(thing._asdict())
         return fixed_things
 
     @classmethod
@@ -278,7 +253,7 @@ class Thing(BaseModel):
         # TODO: Find a cleaner way to do this. get() errors with with_entities
         thing = cls.query.with_entities(*cls.get_client_entities()). \
             filter_by(id=thing_id).all()[0]
-        fixed_thing = fix_dict_datetimes(thing._asdict())
+        fixed_thing = thing._asdict()
         return fixed_thing
 
     @classmethod
@@ -350,5 +325,5 @@ class Thing(BaseModel):
             error = 'User #{} does not have permission to delete Thing #{}'.format(
                 user_id, thing_id)
             raise errors.UserPermissionError(error)
-        thing.date_deleted = datetime.datetime.utcnow()
+        thing.date_deleted = datetime.datetime.now(datetime.timezone.utc)
         db.session.commit()

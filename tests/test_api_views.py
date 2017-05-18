@@ -129,7 +129,7 @@ class SubmitRequestMixin:
             item_id = self.item_id
 
         modified_item = self.model.query.get(item_id)
-        modified_item_dict = modified_item.as_dict()
+        modified_item_dict = modified_item._asdict()
         assert modified_item.name == new_name
         assert modified_item_dict['date_created'] != conftest.TEST_TIME_COMPARE
 
@@ -187,6 +187,8 @@ class TestGetInventories(CommonTests):
         assert isinstance(response_data, list)
         assert len(response_data) == len(test_data)
         # Verify the test data and only the test data is returned
+        print(response_data)
+        print(response_data[0])
         for response_inventory in response_data:
             # Remove generated data
             del response_inventory['id']
@@ -222,7 +224,7 @@ class TestPostInventory(CommonTests, SubmitRequestMixin):
 
         created_inventory = models.Inventory.query.get(new_inventory_response['id'])
         assert created_inventory is not None
-        created_inventory_dict = created_inventory.as_dict()
+        created_inventory_dict = created_inventory._asdict()
         # Remove fields added by backend
         created_inventory_dict = {k: created_inventory_dict[k] for k in created_inventory_dict
                                   if k not in self.response_fields.union(server_fields)}
@@ -250,7 +252,7 @@ class TestPostInventory(CommonTests, SubmitRequestMixin):
         assert created_inventory is not None
         # Time specified above should have been ignored
         assert created_inventory.date_created != conftest.TEST_TIME
-        created_inventory_dict = created_inventory.as_dict()
+        created_inventory_dict = created_inventory._asdict()
         # Remove fields added by backend
         created_inventory_dict = {k: created_inventory_dict[k] for k in created_inventory_dict
                                   if k not in self.response_fields.union(server_fields)}
@@ -300,7 +302,7 @@ class TestGetThings(CommonTests):
                 if thing.date_deleted.tzinfo is None:
                     thing.date_deleted = thing.date_deleted.replace(
                         tzinfo=datetime.timezone.utc)
-            expected_thing = thing.as_dict()
+            expected_thing = thing._asdict()
             expected_thing['date_created'] = \
                 expected_thing['date_created'].isoformat()
             expected_thing['date_modified'] = \
@@ -370,7 +372,7 @@ class TestPostThing(CommonTests, SubmitRequestMixin):
 
         created_thing = models.Thing.query.get(new_thing_response['id'])
         assert created_thing is not None
-        created_thing_dict = created_thing.as_dict()
+        created_thing_dict = created_thing._asdict()
         # Remove fields added by database
         created_thing_dict = {k: created_thing_dict[k] for k in created_thing_dict
                               if k not in self.response_fields.union(server_fields)}
@@ -398,7 +400,7 @@ class TestPostThing(CommonTests, SubmitRequestMixin):
         assert created_thing is not None
         # Time specified above should have been ignored
         assert created_thing.date_created != conftest.TEST_TIME
-        created_thing_dict = created_thing.as_dict()
+        created_thing_dict = created_thing._asdict()
         # Remove fields added by database
         created_thing_dict = {k: created_thing_dict[k] for k in created_thing_dict
                               if k not in self.response_fields.union(server_fields)}
@@ -454,7 +456,7 @@ class TestPutThing(CommonTests, SubmitRequestMixin):
         """Test PUT (updating) a thing."""
         url = url_for(self.view_name, **self.view_params)
         original_thing = models.Thing.query.get(conftest.TEST_THING_ID)
-        expected_data = original_thing.as_dict()
+        expected_data = original_thing._asdict()
         update_data = {'name': 'CHANGED NAME',
                        'location': 'CHANGED LOCATION',
                        'details': 'CHANGED DETAILS'}
@@ -463,7 +465,7 @@ class TestPutThing(CommonTests, SubmitRequestMixin):
         response = post_as_json(authenticated_client.put, url, update_data)
         assert response.status_code == HTTPStatus.OK
 
-        modified_data = models.Thing.query.get(conftest.TEST_THING_ID).as_dict()
+        modified_data = models.Thing.query.get(conftest.TEST_THING_ID)._asdict()
         # Check modification date changed but don't bother comparing
         assert modified_data['date_modified'] > conftest.TEST_TIME
         del modified_data['date_modified'], expected_data['date_modified']

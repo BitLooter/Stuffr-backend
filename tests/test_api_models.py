@@ -1,6 +1,5 @@
 """Test cases for Stuffr models."""
 
-import datetime
 import pytest
 
 from stuffrapp.api import models
@@ -13,39 +12,49 @@ pytestmark = pytest.mark.api_models
 #############
 
 
-def test_fix_dict_datetimes():
-    """Test function that sets datetimes in a dict without offsets to UTC."""
-    PST_OFFSET = -8
-    PST_TIME = conftest.TEST_TIME.replace(tzinfo=datetime.timezone(
-        datetime.timedelta(hours=PST_OFFSET)))
-    NOTZ_TIME = conftest.TEST_TIME.replace(tzinfo=None)
-    test_dict = {
-        'normal_time': conftest.TEST_TIME,
-        'pst_time': PST_TIME,
-        'notz_time': NOTZ_TIME,
-        'not_datetime': 4
-    }
-    fixed_thing = models.fix_dict_datetimes(test_dict)
-    assert fixed_thing['normal_time'].tzinfo == datetime.timezone.utc
-    assert fixed_thing['pst_time'].tzinfo == datetime.timezone(
-        datetime.timedelta(hours=PST_OFFSET))
-    assert fixed_thing['notz_time'].tzinfo == datetime.timezone.utc
-    assert fixed_thing['not_datetime'] == 4
-
-
 @pytest.mark.usefixtures('setupdb')
 class ModelTestBase:
     """Base class for all model test classes."""
 
-    pass
-
-
-class TestCommonBase(ModelTestBase):
-    """Tests for the models' common base class."""
-
     def test_check_id_exists(self):
         """Test that a thing with a given ID exists in the database."""
-        thing_exists = models.Thing.id_exists(conftest.TEST_THING_ID)
-        assert thing_exists
-        bad_thing_exists = models.Thing.id_exists(conftest.TEST_THING_BAD_ID)
-        assert not bad_thing_exists
+        item_exists = self.model.id_exists(self.item_id)
+        assert item_exists
+        bad_item_exists = self.model.id_exists(self.item_bad_id)
+        assert not bad_item_exists
+
+
+class TestUserModel(ModelTestBase):
+    """Test cases for Users."""
+
+    model = models.User
+    item_id = property(lambda _: conftest.TEST_USER_ID)
+    item_bad_id = property(lambda _: conftest.TEST_USER_BAD_ID)
+
+
+class TestInventoryModel(ModelTestBase):
+    """Test cases for Inventories."""
+
+    model = models.Inventory
+    item_id = property(lambda _: conftest.TEST_INVENTORY_ID)
+    item_bad_id = property(lambda _: conftest.TEST_INVENTORY_BAD_ID)
+
+    def test_get_user_inventories(self):
+        """Check that all inventories for a user are returned."""
+        expected_inventories = conftest.TEST_DATA[-1]['inventories']
+        expected_inventory_names = [i['name'] for i in expected_inventories]
+        expected_user_email = conftest.TEST_DATA[-1]['email']
+        test_user_id = models.User.query.filter_by(email=expected_user_email).one().id
+        user_inventories = self.model.get_user_inventories(test_user_id)
+        assert type(user_inventories) == list
+        assert all(isinstance(i, self.model) for i in user_inventories)
+        user_inventory_names = [i.name for i in user_inventories]
+        assert user_inventory_names == expected_inventory_names
+
+
+class TestThingModel(ModelTestBase):
+    """Test cases for Things."""
+
+    model = models.Thing
+    item_id = property(lambda _: conftest.TEST_THING_ID)
+    item_bad_id = property(lambda _: conftest.TEST_THING_BAD_ID)

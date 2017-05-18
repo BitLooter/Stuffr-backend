@@ -34,6 +34,11 @@ def serialize_object(obj: Any) -> str:
         raise TypeError("JSON: Cannot serialize {}".format(type(obj)))
 
 
+def filter_dict(the_dict, allowed_keys):
+    """Filter an input dict to only contain specified keys."""
+    return {k: the_dict[k] for k in the_dict if k in allowed_keys}
+
+
 def json_response(data: Any, status_code: int=HTTPStatus.OK) -> ViewReturnType:
     """Create a response object suitable for JSON data."""
     json_data = json.dumps(data, default=serialize_object)
@@ -76,10 +81,7 @@ INVENTORY_MANAGED_FIELDS = models.Inventory.CLIENT_FIELDS - models.Inventory.USE
 @auth_token_required
 def get_userinfo() -> ViewReturnType:
     """Provide information about the current user."""
-    user_dict = current_user.as_dict()
-    filtered_user = {k: user_dict[k] for k in user_dict
-                     if k in models.User.CLIENT_FIELDS}
-    return json_response(filtered_user)
+    return json_response(filter_dict(current_user._asdict(), models.User.CLIENT_FIELDS))
 
 
 @bp.route('/inventories')
@@ -87,7 +89,8 @@ def get_userinfo() -> ViewReturnType:
 def get_inventories() -> ViewReturnType:
     """Provide a list of inventories from the database."""
     inventories = models.Inventory.get_user_inventories(current_user.id)
-    return json_response(inventories)
+    return json_response([filter_dict(i._asdict(), models.Inventory.CLIENT_FIELDS)
+                          for i in inventories])
 
 
 @bp.route('/inventories', methods=['POST'])
@@ -101,7 +104,7 @@ def post_inventory() -> ViewReturnType:
     except errors.InvalidDataError as e:
         response = error_response(e.args, status_code=HTTPStatus.BAD_REQUEST)
     else:
-        initialized_data = {k: v for (k, v) in inventory.as_dict().items()
+        initialized_data = {k: v for (k, v) in inventory._asdict().items()
                             if k in INVENTORY_MANAGED_FIELDS}
         response = json_response(initialized_data, HTTPStatus.CREATED)
     return response
@@ -138,7 +141,7 @@ def post_thing(inventory_id: int) -> ViewReturnType:
     except errors.InvalidDataError as e:
         response = error_response(e.args, status_code=HTTPStatus.BAD_REQUEST)
     else:
-        initialized_data = {k: v for (k, v) in thing.as_dict().items()
+        initialized_data = {k: v for (k, v) in thing._asdict().items()
                             if k in THING_MANAGED_FIELDS}
         response = json_response(initialized_data, HTTPStatus.CREATED)
     return response
