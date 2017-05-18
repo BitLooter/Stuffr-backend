@@ -19,6 +19,7 @@ TEST_TIME_COMPARE = datetime.datetime(2012, 12, 12, 12, 12, 12,
                                       tzinfo=datetime.timezone.utc)
 # These are set in setupdb after the database is generated
 TEST_USER_ID = None
+TEST_USER_BAD_ID = None
 TEST_INVENTORY_ID = None
 TEST_INVENTORY_BAD_ID = None
 TEST_THING_ID = None
@@ -85,6 +86,8 @@ def setupdb(app):
     # Select the last item in each group to detect bugs involving query.first()
     global TEST_USER_ID
     TEST_USER_ID = models.User.query.order_by(models.User.id.desc()).first().id
+    global TEST_USER_BAD_ID
+    TEST_USER_BAD_ID = db.session.query(db.func.max(models.User.id)).scalar() + 1
     global TEST_INVENTORY_ID
     TEST_INVENTORY_ID = models.Inventory.query. \
         order_by(models.Inventory.id.desc()). \
