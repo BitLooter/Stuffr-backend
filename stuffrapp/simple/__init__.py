@@ -42,10 +42,8 @@ def list_things(inventory_id: int):
     try:
         things = models.Thing.get_things_for_inventory(inventory_id, current_user.id)
     except (ItemNotFoundError, UserPermissionError) as e:
-        response = abort(HTTPStatus.FORBIDDEN)
-    else:
-        response = render_template('simple/things.html', things=things)
-    return response
+        abort(HTTPStatus.FORBIDDEN)
+    return render_template('simple/things.html', things=things)
 
 
 @bp.route('/inventories/<int:inventory_id>/<int:thing_id>/')
