@@ -19,6 +19,7 @@ TEST_TIME_COMPARE = datetime.datetime(2012, 12, 12, 12, 12, 12,
                                       tzinfo=datetime.timezone.utc)
 # These are set in setupdb after the database is generated
 TEST_USER_ID = None
+TEST_ALT_USER_ID = None
 TEST_USER_BAD_ID = None
 TEST_INVENTORY_ID = None
 TEST_INVENTORY_BAD_ID = None
@@ -44,10 +45,21 @@ for u in range(2):
             inventory_data['things'].append(thing_data)
         user_data['inventories'].append(inventory_data)
     TEST_DATA.append(user_data)
-
+# Test objects
+TEST_NEW_THING = {
+    'name': 'Test NEW name',
+    'location': 'Test NEW location',
+    'details': 'Test NEW details'
+}
+TEST_UPDATE_THING = {
+    'name': 'Test MODIFIED name',
+    'location': 'Test MODIFIED location',
+    'details': 'Test MODIFIED details'
+}
 
 # Test fixtures
 ################
+
 
 @pytest.fixture
 def app(scope='session'):
@@ -86,6 +98,8 @@ def setupdb(app):
     # Select the last item in each group to detect bugs involving query.first()
     global TEST_USER_ID
     TEST_USER_ID = models.User.query.order_by(models.User.id.desc()).first().id
+    global TEST_ALT_USER_ID
+    TEST_ALT_USER_ID = models.User.query.order_by(models.User.id.asc()).first().id
     global TEST_USER_BAD_ID
     TEST_USER_BAD_ID = db.session.query(db.func.max(models.User.id)).scalar() + 1
     global TEST_INVENTORY_ID

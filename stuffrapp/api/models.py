@@ -16,6 +16,7 @@ these concepts these names should be refactored to  match standard industry
 practice.
 """
 
+from collections import abc
 import datetime
 from typing import List, Mapping, Sequence, Set
 import flask_security
@@ -62,8 +63,12 @@ class BaseModel(db.Model):
         return {c.key: getattr(self, c.key)
                 for c in sqlalchemy.inspect(self).mapper.column_attrs}
 
+    def as_client_dict(self) -> Mapping:
+        """Return fields as a dict, filtered for clients."""
+        return {k: v for k, v in self._asdict().items() if k in self.CLIENT_FIELDS}
+
     @classmethod
-    def id_exists(cls, item_id) -> bool:
+    def id_exists(cls, item_id: int) -> bool:
         """Check that a row with the specified ID exists in the database."""
         return db.session.query(db.exists().where(cls.id == item_id)).scalar()
 
@@ -77,10 +82,10 @@ class BaseModel(db.Model):
         return entities
 
     @classmethod
-    def filter_user_input_dict(cls, data) -> Mapping:
+    def filter_user_input_dict(cls, data: Mapping) -> dict:
         """Take a dict with model object data and remove non-user fields."""
-        if type(data) is not dict:
-            error = 'Provided data has type {}, should be a dict'.format(type(data))
+        if not isinstance(data, abc.Mapping):
+            error = f'Provided data has type {type(data)}, should be a dict'
             raise errors.InvalidDataError(error)
         return {k: v for (k, v) in data.items() if k in cls.USER_FIELDS}
 
@@ -96,7 +101,7 @@ class DatabaseInfo(BaseModel):
     database_version = db.Column(db.Integer, nullable=False,
                                  default=DATABASE_VERSION)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Basic DatabaseInfo data as a string."""
         return "<DatabaseInfo creator_name='{}'>".format(self.creator_name)
 
@@ -146,7 +151,7 @@ class Role(BaseModel, flask_security.RoleMixin):
     name = db.Column(db.Unicode(length=32), nullable=False)
     description = db.Column(db.Unicode(length=256))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """Basic Role data as a string."""
         return "<Role name='{}'>".format(self.email)
 
@@ -175,12 +180,18 @@ class Inventory(BaseModel):
     @classmethod
     def get_user_inventories(cls, user_id: int) -> List['Inventory']:
         """Return all inventories belonging to specified user."""
+        if not db.session.query(sqlalchemy.sql.exists().where(User.id == user_id)).scalar():
+            error = f'User #{user_id} does not exist'
+            raise errors.ItemNotFoundError(error)
         inventories = cls.query.filter_by(user_id=user_id).all()
         return inventories
 
     @classmethod
     def create_new_inventory(cls, inventory_data: Mapping, user_id: int) -> 'Inventory':
         """Create a new inventory based on inventory_data."""
+        if not db.session.query(sqlalchemy.sql.exists().where(User.id == user_id)).scalar():
+            error = f'User #{user_id} does not exist'
+            raise errors.ItemNotFoundError(error)
         clean_data = cls.filter_user_input_dict(inventory_data)
         if not cls.REQUIRED_FIELDS.issubset(clean_data):
             missing_fields = [f for f in cls.REQUIRED_FIELDS
@@ -226,7 +237,7 @@ class Thing(BaseModel):
         return "<Thing name='{}'>".format(self.name)
 
     @classmethod
-    def get_things_for_inventory(cls, inventory_id: int, user_id: int) -> Sequence:
+    def get_things_for_inventory(cls, inventory_id: int, user_id: int) -> List['Thing']:
         """Return all things belonging to specified inventory."""
         if not Inventory.id_exists(inventory_id):
             error = 'Inventory #{} does not exist'.format(inventory_id)
@@ -239,22 +250,23 @@ class Thing(BaseModel):
             error = 'User #{} does not have permission to get things from Inventory #{}'.format(
                 user_id, inventory_id)
             raise errors.UserPermissionError(error)
-        things = cls.query.with_entities(*cls.get_client_entities()). \
-            filter_by(date_deleted=None, inventory_id=inventory_id).all()
-        fixed_things = []
-        for thing in things:
-            # SQLite does not keep timezone information, assume UTC
-            fixed_things.append(thing._asdict())
-        return fixed_things
+        things = cls.query.filter_by(date_deleted=None, inventory_id=inventory_id).all()
+        return things
 
     @classmethod
-    def get_thing_details(cls, thing_id: int) -> Mapping:
+    def get_thing(cls, thing_id: int, user_id: int) -> 'Thing':
         """Return all information for specified thing."""
-        # TODO: Find a cleaner way to do this. get() errors with with_entities
-        thing = cls.query.with_entities(*cls.get_client_entities()). \
-            filter_by(id=thing_id).all()[0]
-        fixed_thing = thing._asdict()
-        return fixed_thing
+        thing = cls.query.get(thing_id)
+        if thing is None:
+            error = f'Thing #{thing_id} does not exist'
+            raise errors.ItemNotFoundError(error)
+        if not db.session.query(sqlalchemy.sql.exists().where(User.id == user_id)).scalar():
+            error = f'User #{user_id} does not exist'
+            raise errors.ItemNotFoundError(error)
+        elif thing.inventory.user_id != user_id:
+            error = f'User #{user_id} does not have permission to read Thing #{thing_id}'
+            raise errors.UserPermissionError(error)
+        return thing
 
     @classmethod
     def create_new_thing(cls, thing_data: Mapping, inventory_id: int, user_id: int) -> 'Thing':
@@ -262,6 +274,9 @@ class Thing(BaseModel):
         # Sanity check of input
         if not Inventory.id_exists(inventory_id):
             raise errors.ItemNotFoundError('No Inventory with id {}'.format(inventory_id))
+        if not db.session.query(sqlalchemy.sql.exists().where(User.id == user_id)).scalar():
+            error = f'User #{user_id} does not exist'
+            raise errors.ItemNotFoundError(error)
         if Inventory.query.get(inventory_id).user_id != user_id:
             raise errors.UserPermissionError('Inventory #{} does not belong to user #{}'.format(
                 inventory_id, user_id))
@@ -283,7 +298,7 @@ class Thing(BaseModel):
         return thing
 
     @classmethod
-    def update_thing(cls, thing_id: int, update_data: Mapping, user_id: int) -> Mapping:
+    def update_thing(cls, thing_id: int, update_data: Mapping, user_id: int) -> dict:
         """Update thing with new data.
 
         Afer updating, returns data that changed (including server-managed
@@ -292,6 +307,9 @@ class Thing(BaseModel):
         thing = cls.query.get(thing_id)
         if thing is None:
             error = 'Thing #{} does not exist'.format(thing_id)
+            raise errors.ItemNotFoundError(error)
+        if not db.session.query(sqlalchemy.sql.exists().where(User.id == user_id)).scalar():
+            error = f'User #{user_id} does not exist'
             raise errors.ItemNotFoundError(error)
         elif thing.inventory.user_id != user_id:
             error = 'User #{} does not have permission to modify Thing #{}'.format(
@@ -316,7 +334,6 @@ class Thing(BaseModel):
     @classmethod
     def delete_thing(cls, thing_id: int, user_id: int) -> None:
         """Delete an existing thing."""
-        # TODO: handle thing does not exist
         thing = cls.query.get(thing_id)
         if thing is None:
             error = 'Thing #{} does not exist'.format(thing_id)

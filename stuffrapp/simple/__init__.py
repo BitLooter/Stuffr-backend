@@ -9,11 +9,13 @@ JavaScript used. If JavaScript does get used for anything, it shall not be
 required for any functionality.
 """
 
-from flask import Blueprint, render_template
+from http import HTTPStatus
+from flask import Blueprint, render_template, abort
 from flask_security import current_user
 from flask_security.decorators import login_required
 
 from stuffrapp.api import models
+from stuffrapp.api.errors import ItemNotFoundError, UserPermissionError
 
 bp = Blueprint('simple_interface', __name__, template_folder='templates')
 
@@ -37,15 +39,24 @@ def list_inventories():
 @login_required
 def list_things(inventory_id: int):
     """Display things part of given inventory."""
-    # TODO: Verify user owns inventory
-    things = models.Thing.get_things_for_inventory(inventory_id)
-    return render_template('simple/things.html', things=things)
+    try:
+        things = models.Thing.get_things_for_inventory(inventory_id, current_user.id)
+    except (ItemNotFoundError, UserPermissionError) as e:
+        response = abort(HTTPStatus.FORBIDDEN)
+    else:
+        response = render_template('simple/things.html', things=things)
+    return response
 
 
 @bp.route('/inventories/<int:inventory_id>/<int:thing_id>/')
 @login_required
 def thing_details(inventory_id: int, thing_id: int):
     """Display details for specified thing."""
-    # TODO: Verify user owns thing
-    thing = models.Thing.get_thing_details(thing_id)
-    return render_template('simple/thing_details.html', thing=thing)
+    try:
+        thing = models.Thing.get_thing(thing_id, current_user.id)
+    except (ItemNotFoundError, UserPermissionError) as e:
+        abort(HTTPStatus.FORBIDDEN)
+    # If the thing ID is correct but the inventory ID is not, something is screwy
+    if inventory_id != thing.inventory_id:
+        abort(HTTPStatus.BAD_REQUEST)
+    return render_template('simple/thing_details.html', thing=thing.as_client_dict())

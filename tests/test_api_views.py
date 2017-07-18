@@ -13,6 +13,9 @@ from tests import conftest
 pytestmark = pytest.mark.api_views
 
 
+# Fixtures and helper functions
+################################
+
 def post_as_json(request_func, path, data, method='POST'):
     """Convert an object to JSON data and post to path."""
     json_data = json.dumps(data)

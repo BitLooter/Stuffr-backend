@@ -3,7 +3,7 @@
 import datetime
 from http import HTTPStatus
 import json
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Mapping, Sequence
 from flask import request, Blueprint
 from flask_security import current_user
 from flask_security.decorators import auth_token_required
@@ -34,7 +34,7 @@ def serialize_object(obj: Any) -> str:
         raise TypeError("JSON: Cannot serialize {}".format(type(obj)))
 
 
-def filter_dict(the_dict, allowed_keys):
+def filter_dict(the_dict: Mapping, allowed_keys: Sequence) -> Dict:
     """Filter an input dict to only contain specified keys."""
     return {k: the_dict[k] for k in the_dict if k in allowed_keys}
 
@@ -121,7 +121,7 @@ def get_things(inventory_id: int=None) -> ViewReturnType:
     except errors.UserPermissionError as e:
         response = error_response(e.args, status_code=HTTPStatus.FORBIDDEN)
     else:
-        response = json_response(things)
+        response = json_response([t.as_client_dict() for t in things])
     return response
 
 
