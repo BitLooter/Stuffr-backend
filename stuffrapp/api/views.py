@@ -3,17 +3,17 @@
 import datetime
 from http import HTTPStatus
 import json
-from typing import Any, Dict, Tuple, Mapping, Sequence
+from typing import Any, Dict, Mapping, Sequence
 from flask import request, Blueprint
 from flask_security import current_user
 from flask_security.decorators import auth_token_required
 
 from . import models
 from . import errors
+from ..typing import ViewReturnType
+
 
 bp = Blueprint('stuffrapi', __name__, template_folder='templates')
-
-ViewReturnType = Tuple[str, int, Dict[str, str]]
 
 
 # Helper functions

@@ -14,22 +14,22 @@ from flask import Blueprint, render_template, abort
 from flask_security import current_user
 from flask_security.decorators import login_required
 
-from stuffrapp.api import models
-from stuffrapp.api.errors import ItemNotFoundError, UserPermissionError
+from ..api import models
+from ..api.errors import ItemNotFoundError, UserPermissionError
 
 bp = Blueprint('simple_interface', __name__, template_folder='templates')
 
 
 @bp.route('/')
 @login_required
-def main_view():
+def main_view() -> str:
     """Home page for the simple interface."""
     return render_template('simple/main.html')
 
 
 @bp.route('/inventories/')
 @login_required
-def list_inventories():
+def list_inventories() -> str:
     """Display all available inventories."""
     inventories = models.Inventory.get_user_inventories(current_user.id)
     return render_template('simple/inventories.html', inventories=inventories)
@@ -37,7 +37,7 @@ def list_inventories():
 
 @bp.route('/inventories/<int:inventory_id>/')
 @login_required
-def list_things(inventory_id: int):
+def list_things(inventory_id: int) -> str:
     """Display things part of given inventory."""
     try:
         things = models.Thing.get_things_for_inventory(inventory_id, current_user.id)
@@ -48,7 +48,7 @@ def list_things(inventory_id: int):
 
 @bp.route('/inventories/<int:inventory_id>/<int:thing_id>/')
 @login_required
-def thing_details(inventory_id: int, thing_id: int):
+def thing_details(inventory_id: int, thing_id: int) -> str:
     """Display details for specified thing."""
     try:
         thing = models.Thing.get_thing(thing_id, current_user.id)

@@ -6,7 +6,7 @@ environment variable named STUFFR_SETTINGS to contain the name of the file
 containing the local configuration.
 """
 
-from typing import Mapping
+from typing import Mapping, Tuple
 from flask import Flask
 from sqlalchemy.orm.exc import MultipleResultsFound
 from flask_security import Security, SQLAlchemyUserDatastore
@@ -20,6 +20,7 @@ from .simple import bp as blueprint_simple
 
 logger = None
 user_store = SQLAlchemyUserDatastore(db, models.User, models.Role)
+ViewReturnType = Tuple[str, int, Mapping[str, str]]
 
 
 class StuffrRegisterForm(ConfirmRegisterForm):
