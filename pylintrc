@@ -1,0 +1,7 @@
+[MESSAGES CONTROL]
+disable=relative-beyond-top-level
+
+[BASIC]
+# bp = Blueprint definition
+# e = Exception object in error handlers
+good-names=i,j,k,ex,Run,_,bp,e

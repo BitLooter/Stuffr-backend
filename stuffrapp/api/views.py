@@ -39,7 +39,7 @@ def filter_dict(the_dict: Mapping, allowed_keys: Sequence) -> Dict:
     return {k: the_dict[k] for k in the_dict if k in allowed_keys}
 
 
-def json_response(data: Any, status_code: int=HTTPStatus.OK) -> ViewReturnType:
+def json_response(data: Any, status_code: int = HTTPStatus.OK) -> ViewReturnType:
     """Create a response object suitable for JSON data."""
     json_data = json.dumps(data, default=serialize_object)
     if status_code == HTTPStatus.UNAUTHORIZED:
@@ -50,7 +50,7 @@ def json_response(data: Any, status_code: int=HTTPStatus.OK) -> ViewReturnType:
     return json_data, status_code, headers
 
 
-def error_response(message: str, status_code: int=HTTPStatus.BAD_REQUEST) -> ViewReturnType:
+def error_response(message: str, status_code: int = HTTPStatus.BAD_REQUEST) -> ViewReturnType:
     """Create a response object for errors."""
     return json_response({'message': message}, status_code=status_code)
 
@@ -112,7 +112,7 @@ def post_inventory() -> ViewReturnType:
 
 @bp.route('/inventories/<int:inventory_id>/things')
 @auth_token_required
-def get_things(inventory_id: int=None) -> ViewReturnType:
+def get_things(inventory_id: int = None) -> ViewReturnType:
     """Provide a list of things from the database."""
     try:
         things = models.Thing.get_things_for_inventory(inventory_id, current_user.id)
@@ -148,12 +148,12 @@ def post_thing(inventory_id: int) -> ViewReturnType:
 
 
 @bp.route('/things/<int:thing_id>', methods=['PUT'])
-@bp.route('/inventories/<int:inventory_id>/things/<int:thing_id>', methods=['PUT'])
+@bp.route('/inventories/<int:_>/things/<int:thing_id>', methods=['PUT'])
 @auth_token_required
-def update_thing(thing_id: int, inventory_id: int=None) -> ViewReturnType:
+def update_thing(thing_id: int, _: int = None) -> ViewReturnType:
     """PUT (update) a thing in the database.
 
-    inventory_id is ignored, only thing_id is needed.
+    inventory_id (_) is ignored, only thing_id is needed.
     """
     request_data = request.get_json()
     try:
@@ -170,12 +170,12 @@ def update_thing(thing_id: int, inventory_id: int=None) -> ViewReturnType:
 
 
 @bp.route('/things/<int:thing_id>', methods=['DELETE'])
-@bp.route('/inventories/<int:inventory_id>/things/<int:thing_id>', methods=['DELETE'])
+@bp.route('/inventories/<int:_>/things/<int:thing_id>', methods=['DELETE'])
 @auth_token_required
-def delete_thing(thing_id: int, inventory_id: int=None) -> ViewReturnType:
+def delete_thing(thing_id: int, _: int = None) -> ViewReturnType:
     """DELETE a thing in the database.
 
-    inventory_id is ignored, only thing_id is needed.
+    inventory_id (_) is ignored, only thing_id is needed.
     """
     response = NO_CONTENT
     try:
