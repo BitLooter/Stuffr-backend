@@ -6,7 +6,7 @@ environment variable named STUFFR_SETTINGS to contain the name of the file
 containing the local configuration.
 """
 
-from typing import Mapping, Tuple
+from typing import Mapping
 from flask import Flask
 from sqlalchemy.orm.exc import MultipleResultsFound
 from flask_security import Security, SQLAlchemyUserDatastore
@@ -15,12 +15,13 @@ from flask_security.forms import ConfirmRegisterForm, StringField
 
 from database import db
 from .api import models
-from .api.views import bp as blueprint_api, api_unauthenticated_handler
+from .api.views import bp as blueprint_api
+from .api.views_admin import bp as blueprint_apiadmin
+from .api.views_common import api_unauthenticated_handler
 from .simple import bp as blueprint_simple
 
 logger = None
 user_store = SQLAlchemyUserDatastore(db, models.User, models.Role)
-ViewReturnType = Tuple[str, int, Mapping[str, str]]
 
 
 class StuffrRegisterForm(ConfirmRegisterForm):
@@ -31,7 +32,7 @@ class StuffrRegisterForm(ConfirmRegisterForm):
     name_last = StringField('Last name')
 
 
-def create_app(config_override: Mapping={}) -> Flask:
+def create_app(config_override: Mapping = None) -> Flask:
     """Create the flask app for the debug server.
 
     Parameters:
@@ -39,6 +40,7 @@ def create_app(config_override: Mapping={}) -> Flask:
             Dict containing custom configuration to apply after loading the
             normal config. Useful for testing.
     """
+    config_override = {} if config_override is None else config_override
     app = Flask('stuffrdebugserver',
                 instance_relative_config=True,
                 static_url_path='',
@@ -46,11 +48,12 @@ def create_app(config_override: Mapping={}) -> Flask:
     app.config.from_object('config.default')
     app.config.from_envvar('STUFFR_SETTINGS')
     app.config.from_mapping(config_override)
-    global logger
+    global logger   # pylint: disable=global-statement
     logger = app.logger
 
     db.init_app(app)
     security = Security(app, user_store, confirm_register_form=StuffrRegisterForm)
+    # pylint: disable=protected-access
     security._state.unauthorized_handler(api_unauthenticated_handler)
 
     # Initial database setup
@@ -62,19 +65,19 @@ def create_app(config_override: Mapping={}) -> Flask:
 
     app.register_blueprint(blueprint_simple, url_prefix='/simple')
     app.register_blueprint(blueprint_api, url_prefix='/api')
-
-    # connect() doesn't work for some reason, but the decorator does. Should
-    # remove this workaround if a solution is found.
-    @user_registered.connect_via(app)
-    def new_user_signal_handler(app, user=None, confirm_token=None, **extra):
-        setup_new_user(user)
+    app.register_blueprint(blueprint_apiadmin, url_prefix='/api/admin')
 
     return app
 
 
-def setup_new_user(user: models.User):
-    """Initial setup for a new user."""
-    logger.info('Initializing new user {}'.format(user.email))
+@user_registered.connect
+def setup_new_user(*_, user: models.User, **__):
+    """Initial setup for a new user.
+
+    Called via signal handler on user creation. The only parameter we need is
+    the user instance.
+    """
+    logger.info('Initializing new user %s', user.email)
     default_inventory = models.Inventory(
         # TODO: Adapt for missing first name, possesive when ends with S
         name='{}\'s stuff'.format(user.name_first),

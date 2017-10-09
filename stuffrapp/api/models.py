@@ -89,6 +89,10 @@ class BaseModel(db.Model):
             raise errors.InvalidDataError(error)
         return {k: v for (k, v) in data.items() if k in cls.USER_FIELDS}
 
+    @classmethod
+    def total_count(cls):
+        return cls.query.count()
+
 
 class DatabaseInfo(BaseModel):
     """Model for database metadata."""

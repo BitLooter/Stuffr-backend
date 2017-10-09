@@ -1,15 +1,14 @@
 """REST views for stuffr."""
 
-import datetime
 from http import HTTPStatus
-import json
-from typing import Any, Dict, Mapping, Sequence
+from typing import Dict, Mapping, Sequence
 from flask import request, Blueprint
 from flask_security import current_user
 from flask_security.decorators import auth_token_required
 
 from . import models
 from . import errors
+from .views_common import json_response, error_response, NO_CONTENT
 from ..typing import ViewReturnType
 
 
@@ -19,54 +18,14 @@ bp = Blueprint('stuffrapi', __name__, template_folder='templates')
 # Helper functions
 ##################
 
-@bp.errorhandler(HTTPStatus.BAD_REQUEST)
-def defaulthandler(e: Exception) -> ViewReturnType:
-    """Default exception handler to return JSON instead of HTML."""
-    json_data = {'message': '{}: {}'.format(e.name, e.description)}
-    return json_response(json_data, status_code=e.code)
-
-
-def serialize_object(obj: Any) -> str:
-    """Convert unserializable types for JSON encoding."""
-    if isinstance(obj, datetime.datetime):
-        return obj.isoformat()
-    else:
-        raise TypeError("JSON: Cannot serialize {}".format(type(obj)))
-
-
 def filter_dict(the_dict: Mapping, allowed_keys: Sequence) -> Dict:
     """Filter an input dict to only contain specified keys."""
     return {k: the_dict[k] for k in the_dict if k in allowed_keys}
 
 
-def json_response(data: Any, status_code: int = HTTPStatus.OK) -> ViewReturnType:
-    """Create a response object suitable for JSON data."""
-    json_data = json.dumps(data, default=serialize_object)
-    if status_code == HTTPStatus.UNAUTHORIZED:
-        headers = {'Content-Type': 'application/json',
-                   'WWW-Authenticate': 'FormBased'}
-    else:
-        headers = {'Content-Type': 'application/json'}
-    return json_data, status_code, headers
-
-
-def error_response(message: str, status_code: int = HTTPStatus.BAD_REQUEST) -> ViewReturnType:
-    """Create a response object for errors."""
-    return json_response({'message': message}, status_code=status_code)
-
-
-def api_unauthenticated_handler() -> ViewReturnType:
-    """Response handler for unauthenticated requests to protected API calls."""
-    # TODO: Fix logging
-    # logger.warning('Unauthenticated request')
-    return error_response('You must be logged in to access this resource',
-                          status_code=HTTPStatus.UNAUTHORIZED)
-
-
 # Constants
 ###########
 
-NO_CONTENT = ('', HTTPStatus.NO_CONTENT)
 # These fields are handled by the server and not passed in from the client.
 THING_MANAGED_FIELDS = models.Thing.CLIENT_FIELDS - models.Thing.USER_FIELDS
 INVENTORY_MANAGED_FIELDS = models.Inventory.CLIENT_FIELDS - models.Inventory.USER_FIELDS
@@ -76,6 +35,14 @@ INVENTORY_MANAGED_FIELDS = models.Inventory.CLIENT_FIELDS - models.Inventory.USE
 #########
 
 # TODO: Default 404 error view
+
+@bp.route('/serverinfo')
+@auth_token_required
+def get_serverinfo() -> ViewReturnType:
+    """Provide information about the server."""
+    # TODO: Centralized place to store version info
+    return json_response({'version': '0.1.0'})
+
 
 @bp.route('/userinfo')
 @auth_token_required
