@@ -53,8 +53,7 @@ def create_app(config_override: Mapping = None) -> Flask:
 
     db.init_app(app)
     security = Security(app, user_store, confirm_register_form=StuffrRegisterForm)
-    # pylint: disable=protected-access
-    security._state.unauthorized_handler(api_unauthenticated_handler)
+    security.unauthorized_handler(api_unauthenticated_handler)
 
     # Initial database setup
     with app.app_context():
@@ -88,7 +87,6 @@ def setup_new_user(*_, user: models.User, **__):
 
 def initialize_database():
     """Set up the database with default data."""
-    # TODO: make sure you test this after you get the server working against
     try:
         db_info = models.DatabaseInfo.query.one_or_none()
     except MultipleResultsFound as e:
