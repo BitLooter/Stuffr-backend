@@ -1,5 +1,7 @@
 [flake8]
 ignore =
+  # Incorrectly determines indent
+  E131,
   H101,
   # Old-style class declarations
   H238,

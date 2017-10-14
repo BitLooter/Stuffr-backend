@@ -91,6 +91,7 @@ class BaseModel(db.Model):
 
     @classmethod
     def total_count(cls):
+        """Return the total number of this model in the database."""
         return cls.query.count()
 
 
