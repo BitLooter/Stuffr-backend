@@ -19,6 +19,9 @@ pytestmark = pytest.mark.api_models
 class ModelTestBase:
     """Base class for all model test classes."""
 
+    item_id = None
+    item_bad_id = None
+
     def test_check_id_exists(self):
         """Test that a thing with a given ID exists in the database."""
         item_exists = self.model.id_exists(self.item_id)
@@ -54,16 +57,24 @@ class TestUserModel(ModelTestBase):
     """Test cases for Users."""
 
     model = models.User
-    item_id = property(lambda _: conftest.TEST_USER_ID)
-    item_bad_id = property(lambda _: conftest.TEST_USER_BAD_ID)
+
+    @pytest.fixture(autouse=True)
+    def set_ids(self, setupdb):
+        """Set IDs used in common tests."""
+        self.item_id = setupdb.test_user_id
+        self.item_bad_id = setupdb.test_user_bad_id
 
 
 class TestInventoryModel(ModelTestBase):
     """Test cases for Inventories."""
 
     model = models.Inventory
-    item_id = property(lambda _: conftest.TEST_INVENTORY_ID)
-    item_bad_id = property(lambda _: conftest.TEST_INVENTORY_BAD_ID)
+
+    @pytest.fixture(autouse=True)
+    def set_ids(self, setupdb):
+        """Set IDs used in common tests."""
+        self.item_id = setupdb.test_inventory_id
+        self.item_bad_id = setupdb.test_inventory_bad_id
 
     def test_get_user_inventories(self):
         """Check that all inventories for a user are returned."""
@@ -72,63 +83,68 @@ class TestInventoryModel(ModelTestBase):
         expected_user_email = conftest.TEST_DATA[-1]['email']
         test_user_id = models.User.query.filter_by(email=expected_user_email).one().id
         user_inventories = self.model.get_user_inventories(test_user_id)
-        assert type(user_inventories) == list
+        assert isinstance(user_inventories, list)
         assert all(isinstance(i, self.model) for i in user_inventories)
         user_inventory_names = [i.name for i in user_inventories]
         assert user_inventory_names == expected_inventory_names
 
-    def test_create_new_inventory(self):
+    def test_create_new_inventory(self, setupdb):
+        """Check creating a new inventory."""
         new_data = {'name': 'NEW_INVENTORY'}
-        new_inventory = self.model.create_new_inventory(new_data, conftest.TEST_USER_ID)
+        new_inventory = self.model.create_new_inventory(new_data, setupdb.test_user_id)
         assert new_inventory.name == 'NEW_INVENTORY'
 
         with pytest.raises(InvalidDataError):
             missing_data = {}
-            self.model.create_new_inventory(missing_data, conftest.TEST_USER_ID)
+            self.model.create_new_inventory(missing_data, setupdb.test_user_id)
 
         with pytest.raises(ItemNotFoundError):
-            self.model.create_new_inventory(new_data, conftest.TEST_USER_BAD_ID)
+            self.model.create_new_inventory(new_data, setupdb.test_user_bad_id)
 
 
 class TestThingModel(ModelTestBase):
     """Test cases for Things."""
 
     model = models.Thing
-    item_id = property(lambda _: conftest.TEST_THING_ID)
-    item_bad_id = property(lambda _: conftest.TEST_THING_BAD_ID)
 
-    def test_get_things_for_inventory(self):
+    @pytest.fixture(autouse=True)
+    def set_ids(self, setupdb):
+        """Set IDs used in common tests."""
+        self.item_id = setupdb.test_thing_id
+        self.item_bad_id = setupdb.test_thing_bad_id
+
+    def test_get_things_for_inventory(self, setupdb):
         """Test getting all things for a specific inventory."""
         num_test_things = self.model.query. \
-            filter_by(inventory_id=conftest.TEST_INVENTORY_ID, date_deleted=None). \
+            filter_by(inventory_id=setupdb.test_inventory_id, date_deleted=None). \
             count()
         things = self.model.get_things_for_inventory(
-            conftest.TEST_INVENTORY_ID,
-            conftest.TEST_USER_ID)
+            setupdb.test_inventory_id,
+            setupdb.test_user_id)
         assert isinstance(things, abc.Sequence)
         assert len(things) == num_test_things
         assert all(isinstance(t, self.model) for t in things)
 
-    def test_get_thing(self):
+    def test_get_thing(self, setupdb):
         """Test that thing details are retreived."""
-        thing = self.model.get_thing(conftest.TEST_THING_ID, conftest.TEST_USER_ID)
+        thing = self.model.get_thing(setupdb.test_thing_id, setupdb.test_user_id)
         assert isinstance(thing, self.model)
-        assert thing.id == conftest.TEST_THING_ID
+        assert thing.id == setupdb.test_thing_id
 
         # Invalid thing
         with pytest.raises(ItemNotFoundError):
-            self.model.get_thing(conftest.TEST_THING_BAD_ID, conftest.TEST_USER_ID)
+            self.model.get_thing(setupdb.test_thing_bad_id, setupdb.test_user_id)
 
         # Thing unowned
         with pytest.raises(UserPermissionError):
-            self.model.get_thing(conftest.TEST_THING_ID, conftest.TEST_ALT_USER_ID)
+            self.model.get_thing(setupdb.test_thing_id, setupdb.test_alt_user_id)
 
-    def test_create_new_thing(self):
+    def test_create_new_thing(self, setupdb):
         """Test creating new things."""
         # Everything correct
         new_thing = self.model.create_new_thing(conftest.TEST_NEW_THING,
-                                                conftest.TEST_INVENTORY_ID,
-                                                conftest.TEST_USER_ID)
+                                                setupdb.test_inventory_id,
+                                                setupdb.test_user_id)
         assert isinstance(new_thing, self.model)
 
         # Missing a required field
@@ -136,108 +152,108 @@ class TestThingModel(ModelTestBase):
         del new_thing_missing['name']
         with pytest.raises(InvalidDataError):
             self.model.create_new_thing(new_thing_missing,
-                                        conftest.TEST_INVENTORY_ID,
-                                        conftest.TEST_USER_ID)
+                                        setupdb.test_inventory_id,
+                                        setupdb.test_user_id)
 
         # Contains non-writable field
 
         # Empty object
         with pytest.raises(InvalidDataError):
             self.model.create_new_thing({},
-                                        conftest.TEST_INVENTORY_ID,
-                                        conftest.TEST_USER_ID)
+                                        setupdb.test_inventory_id,
+                                        setupdb.test_user_id)
 
         # None object
         with pytest.raises(InvalidDataError):
             self.model.create_new_thing(None,
-                                        conftest.TEST_INVENTORY_ID,
-                                        conftest.TEST_USER_ID)
+                                        setupdb.test_inventory_id,
+                                        setupdb.test_user_id)
 
         # List of things
         with pytest.raises(InvalidDataError):
             thing_data_list = [conftest.TEST_NEW_THING, conftest.TEST_NEW_THING]
             self.model.create_new_thing(thing_data_list,
-                                        conftest.TEST_INVENTORY_ID,
-                                        conftest.TEST_USER_ID)
+                                        setupdb.test_inventory_id,
+                                        setupdb.test_user_id)
 
         # Invalid inventory
         with pytest.raises(ItemNotFoundError):
             self.model.create_new_thing(new_thing_missing,
-                                        conftest.TEST_INVENTORY_BAD_ID,
-                                        conftest.TEST_USER_ID)
+                                        setupdb.test_inventory_bad_id,
+                                        setupdb.test_user_id)
 
         # Unowned inventory
         with pytest.raises(UserPermissionError):
             self.model.create_new_thing(new_thing_missing,
-                                        conftest.TEST_INVENTORY_ID,
-                                        conftest.TEST_ALT_USER_ID)
+                                        setupdb.test_inventory_id,
+                                        setupdb.test_alt_user_id)
 
         # Invalid user
         with pytest.raises(ItemNotFoundError):
             self.model.create_new_thing(new_thing_missing,
-                                        conftest.TEST_INVENTORY_ID,
-                                        conftest.TEST_USER_BAD_ID)
+                                        setupdb.test_inventory_id,
+                                        setupdb.test_user_bad_id)
 
-    def test_update_thing(self):
+    def test_update_thing(self, setupdb):
         """Test that thing data is updated."""
         # Everything correct
-        new_thing = self.model.update_thing(conftest.TEST_THING_ID,
+        new_thing = self.model.update_thing(setupdb.test_thing_id,
                                             conftest.TEST_UPDATE_THING,
-                                            conftest.TEST_USER_ID)
+                                            setupdb.test_user_id)
         assert isinstance(new_thing, dict)
 
         # Contains non-writable field
 
         # Empty object
-        empty_update_results = self.model.update_thing(conftest.TEST_THING_ID,
+        empty_update_results = self.model.update_thing(setupdb.test_thing_id,
                                                        {},
-                                                       conftest.TEST_USER_ID)
+                                                       setupdb.test_user_id)
         assert list(empty_update_results.keys()) == ['date_modified']
 
         # None object
         with pytest.raises(InvalidDataError):
-            self.model.update_thing(conftest.TEST_THING_ID,
+            self.model.update_thing(setupdb.test_thing_id,
                                     None,
-                                    conftest.TEST_USER_ID)
+                                    setupdb.test_user_id)
 
         # List of things
         with pytest.raises(InvalidDataError):
             thing_data_list = [conftest.TEST_NEW_THING, conftest.TEST_NEW_THING]
-            self.model.update_thing(conftest.TEST_THING_ID,
+            self.model.update_thing(setupdb.test_thing_id,
                                     thing_data_list,
-                                    conftest.TEST_USER_ID)
+                                    setupdb.test_user_id)
 
         # Invalid thing
         with pytest.raises(ItemNotFoundError):
-            self.model.update_thing(conftest.TEST_THING_BAD_ID,
+            self.model.update_thing(setupdb.test_thing_bad_id,
                                     conftest.TEST_UPDATE_THING,
-                                    conftest.TEST_USER_ID)
+                                    setupdb.test_user_id)
 
         # Unowned thing
         with pytest.raises(UserPermissionError):
-            self.model.update_thing(conftest.TEST_THING_ID,
+            self.model.update_thing(setupdb.test_thing_id,
                                     conftest.TEST_UPDATE_THING,
-                                    conftest.TEST_ALT_USER_ID)
+                                    setupdb.test_alt_user_id)
 
         # Invalid user
         with pytest.raises(ItemNotFoundError):
-            self.model.update_thing(conftest.TEST_THING_ID,
+            self.model.update_thing(setupdb.test_thing_id,
                                     conftest.TEST_UPDATE_THING,
-                                    conftest.TEST_USER_BAD_ID)
+                                    setupdb.test_user_bad_id)
 
-    def test_delete_thing(self):
+    def test_delete_thing(self, setupdb):
         """Test that things are deleted."""
         # Correct data
-        self.model.delete_thing(conftest.TEST_THING_ID, conftest.TEST_USER_ID)
-        deleted_thing = self.model.query.get(conftest.TEST_THING_ID)
+        self.model.delete_thing(setupdb.test_thing_id, setupdb.test_user_id)
+        deleted_thing = self.model.query.get(setupdb.test_thing_id)
         assert deleted_thing.date_deleted is not None
 
         # Invalid thing
         with pytest.raises(ItemNotFoundError):
-            self.model.delete_thing(conftest.TEST_THING_BAD_ID,
-                                    conftest.TEST_USER_ID)
+            self.model.delete_thing(setupdb.test_thing_bad_id,
+                                    setupdb.test_user_id)
 
         # Unowned thing
         with pytest.raises(UserPermissionError):
-            self.model.delete_thing(conftest.TEST_THING_ID,
-                                    conftest.TEST_ALT_USER_ID)
+            self.model.delete_thing(setupdb.test_thing_id,
+                                    setupdb.test_alt_user_id)
