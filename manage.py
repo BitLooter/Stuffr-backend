@@ -48,5 +48,16 @@ def runserver():
                   debug_app.config['STUFFR_DEBUG_PORT'])
 
 
+@manager.command
+def listroutes():
+    """List all views defined by the app."""
+    for rule in sorted(manager_app.url_map.iter_rules(),
+                       key=lambda r: r.endpoint):
+        endpoint = rule.endpoint
+        methods = ', '.join(r for r in rule.methods if r not in ['OPTIONS', 'HEAD'])
+        path = rule.rule
+        print(f'{endpoint}: ({methods}) {path}')
+
+
 if __name__ == "__main__":
     manager.run()
