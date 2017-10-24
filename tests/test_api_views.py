@@ -7,7 +7,7 @@ from flask import url_for
 
 from stuffrapp.api import models
 from tests import conftest
-from tests.conftest import post_as_json
+from tests.conftest import post_as_json, CommonViewTests
 
 
 pytestmark = pytest.mark.api_views
@@ -15,21 +15,6 @@ pytestmark = pytest.mark.api_views
 
 # The tests
 #############
-
-class CommonTests:
-    """Base class with tests common to all views."""
-
-    item_id = None
-    view_params = {}
-
-    def test_unauthenticated(self, client):
-        """Test that view requires user to be logged in."""
-        url = url_for(self.view_name, **self.view_params)
-        request_func = getattr(client, self.method)
-        response = request_func(url)
-        assert response.status_code == HTTPStatus.UNAUTHORIZED
-        assert response.headers['Content-Type'] == 'application/json'
-
 
 class SubmitRequestMixin:
     """Mixin to perform common tests for POST/PUT requests.
@@ -100,7 +85,7 @@ class SubmitRequestMixin:
         assert modified_item_dict['date_created'] != conftest.TEST_TIME_COMPARE
 
 
-class TestGetUserInfo(CommonTests):
+class TestGetUserInfo(CommonViewTests):
     """Tests for getting user info."""
 
     view_name = 'stuffrapi.get_userinfo'
@@ -126,7 +111,7 @@ class TestGetUserInfo(CommonTests):
         assert response_data == expected_response
 
 
-class TestGetInventories(CommonTests):
+class TestGetInventories(CommonViewTests):
     """Tests for getting inventories."""
 
     view_name = 'stuffrapi.get_inventories'
@@ -162,7 +147,7 @@ class TestGetInventories(CommonTests):
         assert expected_response == [], "Unknown inventories in database"
 
 
-class TestPostInventory(CommonTests, SubmitRequestMixin):
+class TestPostInventory(CommonViewTests, SubmitRequestMixin):
     """Tests for adding inventories."""
 
     view_name = 'stuffrapi.post_inventory'
@@ -240,7 +225,7 @@ class TestPostInventory(CommonTests, SubmitRequestMixin):
         assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
-class TestGetThings(CommonTests):
+class TestGetThings(CommonViewTests):
     """Tests for getting things."""
 
     view_name = 'stuffrapi.get_things'
@@ -311,7 +296,7 @@ class TestGetThings(CommonTests):
         assert response.status_code == HTTPStatus.FORBIDDEN
 
 
-class TestPostThing(CommonTests, SubmitRequestMixin):
+class TestPostThing(CommonViewTests, SubmitRequestMixin):
     """Tests for adding things."""
 
     view_name = 'stuffrapi.post_thing'
@@ -415,7 +400,7 @@ class TestPostThing(CommonTests, SubmitRequestMixin):
         assert response.status_code == HTTPStatus.FORBIDDEN
 
 
-class TestPutThing(CommonTests, SubmitRequestMixin):
+class TestPutThing(CommonViewTests, SubmitRequestMixin):
     """Tests for updating things."""
 
     view_name = 'stuffrapi.update_thing'
@@ -478,7 +463,7 @@ class TestPutThing(CommonTests, SubmitRequestMixin):
         assert response.status_code == HTTPStatus.FORBIDDEN
 
 
-class TestDeleteThing(CommonTests):
+class TestDeleteThing(CommonViewTests):
     """Tests for deleting things."""
 
     view_name = 'stuffrapi.delete_thing'
