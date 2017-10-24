@@ -3,6 +3,7 @@
 from collections import namedtuple
 import datetime
 import json
+from http import HTTPStatus
 import pytest
 from flask import url_for
 from sqlalchemy.engine.url import URL
@@ -138,7 +139,7 @@ def setupdb(app):  # pylint: disable=redefined-outer-name,unused-argument
 
 
 @pytest.fixture
-def authenticated_client(client, setupdb):
+def authenticated_client(client, setupdb):  # pylint: disable=redefined-outer-name
     """Rewrite client requests to include an authentication token."""
     client.user = models.User.query.get(setupdb.test_user_id)
     login_url = url_for('security.login')
@@ -167,3 +168,21 @@ def session_client(client, setupdb):  # pylint: disable=redefined-outer-name
     # Users have plaintext passwords in testing
     login_session(client, user.email, user.password)
     return client
+
+
+# Common test code
+###################
+
+class CommonViewTests:
+    """Base class with tests common to all views."""
+
+    item_id = None
+    view_params = {}
+
+    def test_unauthenticated(self, client):
+        """Test that view requires user to be logged in."""
+        url = url_for(self.view_name, **self.view_params)
+        request_func = getattr(client, self.method)
+        response = request_func(url)
+        assert response.status_code == HTTPStatus.UNAUTHORIZED
+        assert response.headers['Content-Type'] == 'application/json'
