@@ -52,6 +52,12 @@ class ModelTestBase:
             filtered_missing_data = self.model.filter_user_input_dict(missing_data)
             assert set(filtered_missing_data.keys()) < self.model.USER_FIELDS
 
+    def test_total_count(self):
+        """Test that it properly determines the total number of rows."""
+        query_count = len(self.model.query.all())
+        model_count = self.model.total_count()
+        assert query_count == model_count
+
 
 class TestUserModel(ModelTestBase):
     """Test cases for Users."""
