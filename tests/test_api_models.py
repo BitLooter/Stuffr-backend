@@ -70,6 +70,11 @@ class TestUserModel(ModelTestBase):
         self.item_id = setupdb.test_user_id
         self.item_bad_id = setupdb.test_user_bad_id
 
+    def test_get_user_list(self):
+        """Check that retrieving a list of users works"""
+        users = self.model.get_user_list()
+        assert len(users) == len(conftest.TEST_DATA)
+
 
 class TestInventoryModel(ModelTestBase):
     """Test cases for Inventories."""

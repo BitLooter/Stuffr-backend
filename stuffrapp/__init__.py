@@ -6,8 +6,10 @@ environment variable named STUFFR_SETTINGS to contain the name of the file
 containing the local configuration.
 """
 
+from datetime import datetime
 from typing import Mapping
 from flask import Flask
+from flask.json import JSONEncoder
 from sqlalchemy.orm.exc import MultipleResultsFound
 from flask_security import Security, SQLAlchemyUserDatastore
 from flask_security import user_registered
@@ -32,6 +34,18 @@ class StuffrRegisterForm(ConfirmRegisterForm):
     name_last = StringField('Last name')
 
 
+class StuffrJSONEncoder(JSONEncoder):
+    """Handles custom JSON serialization."""
+
+    def default(self, obj):
+        """Convert unserializable types for JSON encoding."""
+        if isinstance(obj, datetime):
+            # Stuffr uses ISO dates
+            return obj.isoformat()
+        else:
+            return JSONEncoder.default(self, obj)
+
+
 def create_app(config_override: Mapping = None) -> Flask:
     """Create the flask app for the debug server.
 
@@ -48,6 +62,7 @@ def create_app(config_override: Mapping = None) -> Flask:
     app.config.from_object('config.default')
     app.config.from_envvar('STUFFR_SETTINGS')
     app.config.from_mapping(config_override)
+    app.json_encoder = StuffrJSONEncoder
     global logger   # pylint: disable=global-statement
     logger = app.logger
 

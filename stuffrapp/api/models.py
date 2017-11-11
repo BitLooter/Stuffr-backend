@@ -149,6 +149,13 @@ class User(BaseModel, flask_security.UserMixin):
         """Basic User data as a string."""
         return "<User email='{}'>".format(self.email)
 
+    @classmethod
+    def get_user_list(cls) -> List['User']:
+        """Return of list of all users in database."""
+        # TODO: Don't load ALL user data for a simple listing
+        users = cls.query.all()
+        return users
+
 
 class Role(BaseModel, flask_security.RoleMixin):
     """Role for a user."""

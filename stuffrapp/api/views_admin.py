@@ -35,3 +35,14 @@ class AdminStats(Resource):
             'numInventories': inventories_count,
             'numThings': thing_count
         }
+
+
+@api.route('/users')
+class AdminUsers(Resource):
+    """Handler for requesting info on users."""
+
+    @auth_token_required
+    def get(self) -> ViewReturnType:
+        """Returns list of all users."""
+        users = models.User.get_user_list()
+        return [u.as_client_dict() for u in users]

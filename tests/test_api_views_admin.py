@@ -39,3 +39,24 @@ class TestGetAdminStats(conftest.CommonViewTests):
         response_data = response.json
         assert isinstance(response_data, dict)
         assert response_data['numUsers'] == num_users
+
+
+class TestGetAdminUsers(conftest.CommonViewTests):
+    """Tests for getting stats about the database."""
+
+    view_name = 'stuffrapi_admin.admin_users'
+    method = 'get'
+
+    def test_get_users(self, authenticated_client):
+        """Test GETing users."""
+        # Prepare test data
+        num_users = len(conftest.TEST_DATA)
+        url = url_for(self.view_name)
+
+        response = authenticated_client.get(url)
+        assert response.status_code == HTTPStatus.OK
+        assert response.headers['Content-Type'] == 'application/json'
+
+        response_data = response.json
+        assert isinstance(response_data, list)
+        assert len(response_data) == num_users
