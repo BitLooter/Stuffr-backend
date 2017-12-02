@@ -22,11 +22,11 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 SECURITY_URL_PREFIX = '/auth'
 SECURITY_POST_LOGOUT_VIEW = 'simple_interface.main_view'
 SECURITY_REGISTERABLE = True
-# TODO: Do email stuff
-SECURITY_SEND_REGISTER_EMAIL = False
 # Stuffr uses token-based security, CSRF is not a factor
 # TODO: Now that there's a static HTML view this will need to be enabled
 WTF_CSRF_ENABLED = False
+
+MAIL_PORT = 25
 
 
 # Settings specific to Stuffr

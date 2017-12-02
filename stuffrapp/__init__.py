@@ -14,6 +14,7 @@ from sqlalchemy.orm.exc import MultipleResultsFound
 from flask_security import Security, SQLAlchemyUserDatastore
 from flask_security import user_registered
 from flask_security.forms import ConfirmRegisterForm, StringField
+from flask_mail import Mail
 
 from database import db
 from .api import models
@@ -42,8 +43,8 @@ class StuffrJSONEncoder(JSONEncoder):
         if isinstance(obj, datetime):
             # Stuffr uses ISO dates
             return obj.isoformat()
-        else:
-            return JSONEncoder.default(self, obj)
+
+        return JSONEncoder.default(self, obj)
 
 
 def create_app(config_override: Mapping = None) -> Flask:
@@ -69,6 +70,7 @@ def create_app(config_override: Mapping = None) -> Flask:
     db.init_app(app)
     security = Security(app, user_store, confirm_register_form=StuffrRegisterForm)
     security.unauthorized_handler(api_unauthenticated_handler)
+    Mail(app)
 
     # Initial database setup
     with app.app_context():

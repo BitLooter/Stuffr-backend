@@ -16,3 +16,7 @@ SQLALCHEMY_DATABASE_URI = URL(
 )
 
 SECURITY_PASSWORD_HASH = 'bcrypt'
+
+# Set these to your SMTP server. MAIL_PORT defaults to 25 if not set.
+MAIL_SERVER =
+# MAIL_PORT =
