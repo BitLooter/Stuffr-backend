@@ -30,11 +30,3 @@ MAIL_PORT = 25
 
 
 # Settings specific to Stuffr
-
-# Will be used as the 'host'/'port' parameters for app.run
-STUFFR_DEBUG_HOST = 'localhost'
-STUFFR_DEBUG_PORT = 5000
-# Normally handled by Alembic
-STUFFR_CREATE_TABLES = False
-# Set False if you need to create app without seeding database, e.g. testing
-STUFFR_INITIALIZE_DATABASE = True

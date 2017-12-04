@@ -10,7 +10,6 @@ from datetime import datetime
 from typing import Mapping
 from flask import Flask
 from flask.json import JSONEncoder
-from sqlalchemy.orm.exc import MultipleResultsFound
 from flask_security import Security, SQLAlchemyUserDatastore
 from flask_security import user_registered
 from flask_security.forms import ConfirmRegisterForm, StringField
@@ -72,13 +71,6 @@ def create_app(config_override: Mapping = None) -> Flask:
     security.unauthorized_handler(api_unauthenticated_handler)
     Mail(app)
 
-    # Initial database setup
-    with app.app_context():
-        if app.config['STUFFR_CREATE_TABLES']:
-            db.create_all()
-        if app.config['STUFFR_INITIALIZE_DATABASE']:
-            initialize_database()
-
     app.register_blueprint(blueprint_simple, url_prefix='/simple')
     app.register_blueprint(blueprint_api, url_prefix='/api')
     app.register_blueprint(blueprint_apiadmin, url_prefix='/api/admin')
@@ -100,21 +92,3 @@ def setup_new_user(*_, user: models.User, **__):
         user=user)
     db.session.add(default_inventory)
     db.session.commit()
-
-
-def initialize_database():
-    """Set up the database with default data."""
-    try:
-        db_info = models.DatabaseInfo.query.one_or_none()
-    except MultipleResultsFound as e:
-        logger.error(
-            'Multiple DatabaseInfo entries found. This shouldn\'t happen.')
-        # TODO: Handle this error
-        raise e
-
-    # If no DatabaseInfo table, database has not been initialized
-    if not db_info:
-        logger.info('Performing first-time database initialization...')
-        info = models.DatabaseInfo(creator_name='Stuffr', creator_version='alpha')
-        db.session.add(info)
-        db.session.commit()
