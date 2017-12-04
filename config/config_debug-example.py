@@ -4,6 +4,7 @@ from sqlalchemy.engine.url import URL
 
 DEBUG = True
 SECRET_KEY = 'DEBUG KEY DO NOT USE IN PRODUCTION'
+SECURITY_PASSWORD_SALT = 'CHANGEME'
 
 # By default writes to a local SQLite database
 SQLALCHEMY_DATABASE_URI = URL(drivername='sqlite', database='stuffr.db')

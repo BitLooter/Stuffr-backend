@@ -22,6 +22,11 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 SECURITY_URL_PREFIX = '/auth'
 SECURITY_POST_LOGOUT_VIEW = 'simple_interface.main_view'
 SECURITY_REGISTERABLE = True
+# Allow plaintext for testing. Also prevents bug that appears when 'argon2'
+# is the only item in the list. Will remove this line when Flask-Security
+# adds argon2 to the allowed hashes.
+SECURITY_PASSWORD_SCHEMES = ['plaintext', 'argon2']
+SECURITY_PASSWORD_HASH = 'argon2'
 # Stuffr uses token-based security, CSRF is not a factor
 # TODO: Now that there's a static HTML view this will need to be enabled
 WTF_CSRF_ENABLED = False
