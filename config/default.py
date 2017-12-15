@@ -22,6 +22,7 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 SECURITY_URL_PREFIX = '/auth'
 SECURITY_POST_LOGOUT_VIEW = 'simple_interface.main_view'
 SECURITY_REGISTERABLE = True
+SECURITY_RECOVERABLE = True
 # Allow plaintext for testing. Also prevents bug that appears when 'argon2'
 # is the only item in the list. Will remove this line when Flask-Security
 # adds argon2 to the allowed hashes.

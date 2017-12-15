@@ -75,6 +75,9 @@ def create_app(config_override: Mapping = None) -> Flask:
     app.register_blueprint(blueprint_api, url_prefix='/api')
     app.register_blueprint(blueprint_apiadmin, url_prefix='/api/admin')
 
+    # TODO: Make friendlier error message (40x or 50x?)
+    app.add_url_rule('/', 'index', lambda: "You probably shouldn't be here")
+
     return app
 
 
