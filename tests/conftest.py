@@ -88,6 +88,7 @@ def app():
     test_config = {
         'SECRET_KEY': 'TEST',
         'TESTING': True,
+        'DEBUG': False,
         'SECURITY_PASSWORD_HASH': 'plaintext',
         'SQLALCHEMY_DATABASE_URI': URL(drivername='sqlite'),
         'SQLALCHEMY_TRACK_MODIFICATIONS': False

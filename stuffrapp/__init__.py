@@ -12,38 +12,37 @@ from flask import Flask
 from flask.json import JSONEncoder
 from flask_security import Security, SQLAlchemyUserDatastore
 from flask_security import user_registered
-from flask_security.forms import ConfirmRegisterForm, StringField
+from flask_security.forms import ConfirmRegisterForm, StringField, validators
 from flask_mail import Mail
 
 from database import db
+from . import logger
 from .api import models
 from .api.views import bp as blueprint_api
 from .api.views_admin import bp as blueprint_apiadmin
 from .api.views_common import api_unauthenticated_handler
 from .simple import bp as blueprint_simple
 
-logger = None
 user_store = SQLAlchemyUserDatastore(db, models.User, models.Role)
 
 
 class StuffrRegisterForm(ConfirmRegisterForm):
     """Extended form for more fields during user registration."""
 
-    # TODO: make required
     name_first = StringField('First name')
-    name_last = StringField('Last name')
+    name_last = StringField('Last name', [validators.DataRequired()])
 
 
 class StuffrJSONEncoder(JSONEncoder):
     """Handles custom JSON serialization."""
 
-    def default(self, obj):
+    def default(self, o):  # pylint: disable=method-hidden
         """Convert unserializable types for JSON encoding."""
-        if isinstance(obj, datetime):
+        if isinstance(o, datetime):
             # Stuffr uses ISO dates
-            return obj.isoformat()
+            return o.isoformat()
 
-        return JSONEncoder.default(self, obj)
+        return JSONEncoder.default(self, o)
 
 
 def create_app(config_override: Mapping = None) -> Flask:
@@ -55,6 +54,7 @@ def create_app(config_override: Mapping = None) -> Flask:
             normal config. Useful for testing.
     """
     config_override = {} if config_override is None else config_override
+    # TODO: Rename app, no longer used only for debugging
     app = Flask('stuffrdebugserver',
                 instance_relative_config=True,
                 static_url_path='',
@@ -63,8 +63,7 @@ def create_app(config_override: Mapping = None) -> Flask:
     app.config.from_envvar('STUFFR_SETTINGS')
     app.config.from_mapping(config_override)
     app.json_encoder = StuffrJSONEncoder
-    global logger   # pylint: disable=global-statement
-    logger = app.logger
+    logger.set_logger(app.logger)
 
     db.init_app(app)
     security = Security(app, user_store, confirm_register_form=StuffrRegisterForm)
@@ -88,7 +87,7 @@ def setup_new_user(*_, user: models.User, **__):
     Called via signal handler on user creation. The only parameter we need is
     the user instance.
     """
-    logger.info('Initializing new user %s', user.email)
+    logger.logger.info('Initializing new user %s', user.email)
     default_inventory = models.Inventory(
         # TODO: Adapt for missing first name, possesive when ends with S
         name='{}\'s stuff'.format(user.name_first),

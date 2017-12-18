@@ -5,6 +5,7 @@ from http import HTTPStatus
 import json
 from typing import Any
 
+from ..logger import logger
 from ..typing import ViewReturnType
 
 # Constants
@@ -41,7 +42,6 @@ def error_response(message: str, status_code: int = HTTPStatus.BAD_REQUEST) -> V
 
 def api_unauthenticated_handler() -> ViewReturnType:
     """Response handler for unauthenticated requests to protected API calls."""
-    # TODO: Fix logging
-    # logger.warning('Unauthenticated request')
+    logger.warning('Unauthenticated request')
     return error_response('You must be logged in to access this resource',
                           status_code=HTTPStatus.UNAUTHORIZED)
