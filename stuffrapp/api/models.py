@@ -75,11 +75,7 @@ class BaseModel(db.Model):
     @classmethod
     def get_client_entities(cls) -> Set:
         """Return SQLAlchemy entities used by clients."""
-        # TODO: Set comprehension?
-        entities = set()
-        for field in cls.CLIENT_FIELDS:
-            entities.add(getattr(cls, field))
-        return entities
+        return {getattr(cls, f) for f in cls.CLIENT_FIELDS}
 
     @classmethod
     def filter_user_input_dict(cls, data: Mapping) -> dict:
