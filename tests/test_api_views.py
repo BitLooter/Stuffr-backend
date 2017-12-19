@@ -519,3 +519,11 @@ class TestDeleteThing(CommonViewTests):
 
         response = authenticated_client.delete(url)
         assert response.status_code == HTTPStatus.FORBIDDEN
+
+
+def test_root_error(client):
+    """Sanity check that root behaves as expected."""
+    url = url_for('stuffrapi.root_error')
+    response = client.get(url)
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.headers['Content-Type'] == 'application/json'

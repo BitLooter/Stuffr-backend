@@ -17,8 +17,6 @@ api = Api(bp)
 # Routes
 #########
 
-# TODO: Route for root and admin root
-
 # TODO: Check user role
 @api.route('/stats')
 class AdminStats(Resource):

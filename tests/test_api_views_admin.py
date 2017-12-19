@@ -60,3 +60,11 @@ class TestGetAdminUsers(conftest.CommonViewTests):
         response_data = response.json
         assert isinstance(response_data, list)
         assert len(response_data) == num_users
+
+
+def test_admin_root_error(client):
+    """Sanity check that root behaves as expected."""
+    url = url_for('stuffrapi_admin.root')
+    response = client.get(url)
+    assert response.status_code == HTTPStatus.NOT_FOUND
+    assert response.headers['Content-Type'] == 'application/json'

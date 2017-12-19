@@ -7,6 +7,7 @@ containing the local configuration.
 """
 
 from datetime import datetime
+from http import HTTPStatus
 from typing import Mapping
 from flask import Flask
 from flask.json import JSONEncoder
@@ -20,7 +21,7 @@ from . import logger
 from .api import models
 from .api.views import bp as blueprint_api
 from .api.views_admin import bp as blueprint_apiadmin
-from .api.views_common import api_unauthenticated_handler
+from .api.views_common import api_unauthenticated_handler, error_response
 from .simple import bp as blueprint_simple
 
 user_store = SQLAlchemyUserDatastore(db, models.User, models.Role)
@@ -70,9 +71,30 @@ def create_app(config_override: Mapping = None) -> Flask:
     security.unauthorized_handler(api_unauthenticated_handler)
     Mail(app)
 
+    # In debug mode Swagger documentation is served at root
+    if not app.config['DEBUG']:
+        def api_root_view():
+            """Provide a link to API documentation if root accessed."""
+            return error_response(
+                'TODO: Link to documentation here', HTTPStatus.NOT_FOUND)
+        blueprint_api.add_url_rule('/', 'apiindex', api_root_view)
+
+        def apiadmin_root():
+            """Dummy view for API root."""
+            # TODO: Clean up this view definition when main API switches
+            # to Flask-Restplus
+            return error_response('Nothing to see here', HTTPStatus.NOT_FOUND)
+        blueprint_apiadmin.add_url_rule('/', 'apiadmin_root', apiadmin_root)
+
     app.register_blueprint(blueprint_simple, url_prefix='/simple')
     app.register_blueprint(blueprint_api, url_prefix='/api')
     app.register_blueprint(blueprint_apiadmin, url_prefix='/api/admin')
+
+    def default404(e):
+        """Default handler for 404."""
+        # TODO: Conditional JSON/HTML response (for simple mode)
+        return error_response(e.description, HTTPStatus.NOT_FOUND)
+    app.register_error_handler(HTTPStatus.NOT_FOUND, default404)
 
     # TODO: Make friendlier error message (40x or 50x?)
     app.add_url_rule('/', 'index', lambda: "You probably shouldn't be here")
