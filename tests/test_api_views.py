@@ -523,7 +523,7 @@ class TestDeleteThing(CommonViewTests):
 
 def test_root_error(client):
     """Sanity check that root behaves as expected."""
-    url = url_for('stuffrapi.root_error')
+    url = url_for('stuffrapi.apiindex')
     response = client.get(url)
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert response.headers['Content-Type'] == 'application/json'

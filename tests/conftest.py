@@ -67,6 +67,12 @@ TEST_TIME = datetime.datetime(2011, 11, 11, 11, 11, 11,
 TEST_TIME_COMPARE = datetime.datetime(2012, 12, 12, 12, 12, 12,
                                       tzinfo=datetime.timezone.utc)
 TEST_DATA = _generate_test_data()
+TEST_NEW_USER = {
+    'email': 'testnewuser@example.com',
+    'password': 'hunter2',
+    'name_first': 'TEST',
+    'name_last': 'USER'
+}
 TEST_NEW_THING = {
     'name': 'Test NEW name',
     'location': 'Test NEW location',
@@ -83,7 +89,7 @@ TEST_UPDATE_THING = {
 ################
 
 @pytest.fixture(scope='session')
-def app():
+def app(request):
     """Fixture to set up Flask tests."""
     test_config = {
         'SECRET_KEY': 'TEST',
@@ -91,8 +97,12 @@ def app():
         'DEBUG': False,
         'SECURITY_PASSWORD_HASH': 'plaintext',
         'SQLALCHEMY_DATABASE_URI': URL(drivername='sqlite'),
-        'SQLALCHEMY_TRACK_MODIFICATIONS': False
+        'SQLALCHEMY_TRACK_MODIFICATIONS': False,
+        'MAIL_SUPPRESS_SEND': True
     }
+    # Tests can override settings by marking themselves with appsettings
+    if 'appsettings' in request.keywords:
+        test_config.update(request.keywords['appsettings'].kwargs)
     new_app = create_app(config_override=test_config)
     return new_app
 
@@ -142,6 +152,7 @@ def setupdb(app):  # pylint: disable=redefined-outer-name,unused-argument
 def authenticated_client(client, setupdb):  # pylint: disable=redefined-outer-name
     """Rewrite client requests to include an authentication token."""
     client.user = models.User.query.get(setupdb.test_user_id)
+    # TODO: use login_user instead of an HTTP call
     login_url = url_for('security.login')
     credentials = {
         'email': client.user.email,

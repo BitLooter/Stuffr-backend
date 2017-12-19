@@ -12,7 +12,6 @@ from typing import Mapping
 from flask import Flask
 from flask.json import JSONEncoder
 from flask_security import Security, SQLAlchemyUserDatastore
-from flask_security import user_registered
 from flask_security.forms import ConfirmRegisterForm, StringField, validators
 from flask_mail import Mail
 
@@ -100,19 +99,3 @@ def create_app(config_override: Mapping = None) -> Flask:
     app.add_url_rule('/', 'index', lambda: "You probably shouldn't be here")
 
     return app
-
-
-@user_registered.connect
-def setup_new_user(*_, user: models.User, **__):
-    """Initial setup for a new user.
-
-    Called via signal handler on user creation. The only parameter we need is
-    the user instance.
-    """
-    logger.logger.info('Initializing new user %s', user.email)
-    default_inventory = models.Inventory(
-        # TODO: Adapt for missing first name, possesive when ends with S
-        name='{}\'s stuff'.format(user.name_first),
-        user=user)
-    db.session.add(default_inventory)
-    db.session.commit()
