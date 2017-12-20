@@ -27,6 +27,7 @@ SECURITY_RECOVERABLE = True
 # is the only item in the list. Will remove this line when Flask-Security
 # adds argon2 to the allowed hashes.
 SECURITY_PASSWORD_SCHEMES = ['plaintext', 'argon2']
+# TODO: This breaks login, figure out why. plaintext works for dev until then.
 SECURITY_PASSWORD_HASH = 'argon2'
 # Stuffr uses token-based security, CSRF is not a factor
 # TODO: Now that there's a static HTML view this will need to be enabled
