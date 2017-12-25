@@ -1,6 +1,7 @@
 """Test cases for Stuffr views."""
 
 from http import HTTPStatus
+from collections.abc import Mapping, Sequence
 import pytest
 from flask import url_for
 
@@ -16,7 +17,7 @@ pytestmark = pytest.mark.api_views
 class TestGetAdminStats(conftest.CommonViewTests):
     """Tests for getting stats about the database."""
 
-    view_name = 'stuffrapi_admin.admin_stats'
+    view_name = 'stuffrapi.admin_stats'
     method = 'get'
 
     def test_get_stats(self, authenticated_client):
@@ -37,14 +38,14 @@ class TestGetAdminStats(conftest.CommonViewTests):
         assert response.headers['Content-Type'] == 'application/json'
 
         response_data = response.json
-        assert isinstance(response_data, dict)
+        assert isinstance(response_data, Mapping)
         assert response_data['numUsers'] == num_users
 
 
 class TestGetAdminUsers(conftest.CommonViewTests):
     """Tests for getting stats about the database."""
 
-    view_name = 'stuffrapi_admin.admin_users'
+    view_name = 'stuffrapi.admin_users'
     method = 'get'
 
     def test_get_users(self, authenticated_client):
@@ -58,13 +59,13 @@ class TestGetAdminUsers(conftest.CommonViewTests):
         assert response.headers['Content-Type'] == 'application/json'
 
         response_data = response.json
-        assert isinstance(response_data, list)
-        assert len(response_data) == num_users
+        assert isinstance(response_data['users'], Sequence)
+        assert len(response_data['users']) == num_users
 
 
 def test_admin_root_error(client):
     """Sanity check that root behaves as expected."""
-    url = url_for('stuffrapi_admin.root')
+    url = url_for('stuffrapi.root')
     response = client.get(url)
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert response.headers['Content-Type'] == 'application/json'

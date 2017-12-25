@@ -11,15 +11,15 @@ from http import HTTPStatus
 from typing import Mapping
 from flask import Flask
 from flask.json import JSONEncoder
+from flask_mail import Mail
 from flask_security import Security, SQLAlchemyUserDatastore
 from flask_security.forms import ConfirmRegisterForm, StringField, validators
-from flask_mail import Mail
 
 from database import db
 from . import logger
 from .api import models
-from .api.views import bp as blueprint_api
-from .api.views_admin import bp as blueprint_apiadmin
+# from .api.views import bp as blueprint_api
+from .api.views_common import bp as blueprint_api
 from .api.views_common import api_unauthenticated_handler, error_response
 from .simple import bp as blueprint_simple
 
@@ -78,16 +78,8 @@ def create_app(config_override: Mapping = None) -> Flask:
                 'TODO: Link to documentation here', HTTPStatus.NOT_FOUND)
         blueprint_api.add_url_rule('/', 'apiindex', api_root_view)
 
-        def apiadmin_root():
-            """Dummy view for API root."""
-            # TODO: Clean up this view definition when main API switches
-            # to Flask-Restplus
-            return error_response('Nothing to see here', HTTPStatus.NOT_FOUND)
-        blueprint_apiadmin.add_url_rule('/', 'apiadmin_root', apiadmin_root)
-
     app.register_blueprint(blueprint_simple, url_prefix='/simple')
     app.register_blueprint(blueprint_api, url_prefix='/api')
-    app.register_blueprint(blueprint_apiadmin, url_prefix='/api/admin')
 
     def default404(e):
         """Default handler for 404."""

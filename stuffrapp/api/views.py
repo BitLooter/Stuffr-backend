@@ -2,17 +2,17 @@
 
 from http import HTTPStatus
 from typing import Dict, Mapping, Sequence
-from flask import request, Blueprint
+from flask import request
 from flask_security import current_user
 from flask_security.decorators import auth_token_required
 
 from . import models
 from . import errors
-from .views_common import json_response, error_response, NO_CONTENT
+from .views_common import json_response, error_response, NO_CONTENT, bp
 from ..typing import ViewReturnType
 
 
-bp = Blueprint('stuffrapi', __name__, template_folder='templates')
+ns = None
 
 
 # Helper functions

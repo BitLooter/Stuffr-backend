@@ -5,6 +5,7 @@ from sqlalchemy.engine.url import URL
 DEBUG = True
 SECRET_KEY = 'DEBUG KEY DO NOT USE IN PRODUCTION'
 SECURITY_PASSWORD_SALT = 'CHANGEME'
+SECURITY_PASSWORD_HASH = 'plaintext'
 
 # By default writes to a local SQLite database
 SQLALCHEMY_DATABASE_URI = URL(drivername='sqlite', database='stuffr.db')
@@ -17,3 +18,5 @@ MAIL_SUPPRESS_SEND = True
 # set SMTP server parameters.
 # MAIL_SERVER = 'localhost'
 # MAIL_PORT = 1025
+
+SWAGGER_UI_DOC_EXPANSION = 'list'
