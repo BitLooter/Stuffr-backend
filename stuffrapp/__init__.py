@@ -18,8 +18,7 @@ from flask_security.forms import ConfirmRegisterForm, StringField, validators
 from database import db
 from . import logger
 from .api import models
-# from .api.views import bp as blueprint_api
-from .api.views_common import bp as blueprint_api
+from .api.views import bp as blueprint_api
 from .api.views_common import api_unauthenticated_handler, error_response
 from .simple import bp as blueprint_simple
 

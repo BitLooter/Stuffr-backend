@@ -4,24 +4,9 @@ import datetime
 from http import HTTPStatus
 import json
 from typing import Any
-from flask import Blueprint
-from flask_restplus import Api
 
-from .views_admin import ns as ns_admin
 from ..logger import logger
 from ..typing import ViewReturnType
-
-
-authorizations = {
-    'ApiKey': {
-        'type': 'apiKey',
-        'in': 'header',
-        'name': 'authentication-token'
-    }
-}
-bp = Blueprint('stuffrapi', __name__, template_folder='templates')
-api = Api(bp, authorizations=authorizations, security='ApiKey')
-api.add_namespace(ns_admin)
 
 
 # Constants
@@ -61,5 +46,3 @@ def api_unauthenticated_handler() -> ViewReturnType:
     logger.warning('Unauthenticated request')
     return error_response('You must be logged in to access this resource',
                           status_code=HTTPStatus.UNAUTHORIZED)
-
-from .views import ns as ns_core

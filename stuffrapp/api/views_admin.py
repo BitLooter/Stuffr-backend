@@ -78,10 +78,11 @@ class Users(Resource):
 
 
 @ns.route('/')
+@ns.hide
 @ns.response(HTTPStatus.NOT_FOUND, "Nothing at root")
 class Root(Resource):
     """Handler for admin root."""
 
-    def get(self):
+    def get(self) -> ViewReturnType:
         """Dummy endpoint for admin root, nothing there."""
         return 'Nothing here', HTTPStatus.NOT_FOUND
