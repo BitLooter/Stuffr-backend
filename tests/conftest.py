@@ -89,7 +89,7 @@ TEST_UPDATE_THING = {
 ################
 
 @pytest.fixture(scope='session')
-def app(request):
+def app():
     """Fixture to set up Flask tests."""
     test_config = {
         'SECRET_KEY': 'TEST',
@@ -100,9 +100,6 @@ def app(request):
         'SQLALCHEMY_TRACK_MODIFICATIONS': False,
         'MAIL_SUPPRESS_SEND': True
     }
-    # Tests can override settings by marking themselves with appsettings
-    if 'appsettings' in request.keywords:
-        test_config.update(request.keywords['appsettings'].kwargs)
     new_app = create_app(config_override=test_config)
     return new_app
 

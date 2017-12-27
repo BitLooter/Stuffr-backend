@@ -13,7 +13,7 @@ pytestmark = pytest.mark.auth
 # The tests
 #############
 
-@pytest.mark.appsettings(SECURITY_SEND_REGISTER_EMAIL=False)
+@pytest.mark.options(SECURITY_SEND_REGISTER_EMAIL=False)
 @pytest.mark.usefixtures('setupdb')
 def test_new_user_setup():
     """Test new user creation initial setup.
