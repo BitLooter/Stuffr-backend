@@ -5,7 +5,8 @@ import datetime
 import json
 from http import HTTPStatus
 import pytest
-from flask import url_for
+from flask import url_for, session
+from flask_security.utils import login_user
 from sqlalchemy.engine.url import URL
 
 from stuffrapp import create_app, user_store
@@ -49,15 +50,21 @@ def post_as_json(request_func, path, data):
                         data=json_data)
 
 
-def login_session(client, email, password):
-    """Logs in a client with the given email and password as credentials.
+def _login_session(test_app, client):
+    """Logs in a client with the with the client's user.
+
+    Expects client to have an attribute 'user' with the user object that will
+    be logged in.
 
     Uses session-based authentication and intended to be used by the
-    session_client fixture. For token-based AJAX authentication, use the
-    authenticated_client fixture.
+    session_client fixture (cookie-based session management). For token-based
+    AJAX authentication, use the authenticated_client fixture.
     """
-    login_url = url_for('security.login')
-    client.post(login_url, data={'email': email, 'password': password})
+    login_user(client.user)
+    # Session will be lost for the actual test, manually add session cookie
+    session_serializer = test_app.session_interface.get_signing_serializer(test_app)
+    session_cookie = session_serializer.dumps(dict(session))
+    client.set_cookie('localhost', 'session', session_cookie)
 
 
 # Test data
@@ -146,16 +153,19 @@ def setupdb(app):  # pylint: disable=redefined-outer-name,unused-argument
 
 
 @pytest.fixture
-def authenticated_client(client, setupdb):  # pylint: disable=redefined-outer-name
+def authenticated_client(request, client, setupdb):  # pylint: disable=redefined-outer-name
     """Rewrite client requests to include an authentication token."""
-    client.user = models.User.query.get(setupdb.test_user_id)
-    # TODO: use login_user instead of an HTTP call
-    login_url = url_for('security.login')
-    credentials = {
-        'email': client.user.email,
-        'password': client.user.password}
-    response = post_as_json(client.post, login_url, credentials)
-    token = response.json['response']['user']['authentication_token']
+    user_id = None
+    if 'use_alt_user' in request.keywords:
+        print(f'authenticated_client: Using alternate user ID {setupdb.test_alt_user_id}')
+        user_id = setupdb.test_alt_user_id
+    else:
+        print(f'authenticated_client: Using default user ID {setupdb.test_user_id}')
+        user_id = setupdb.test_user_id
+    client.user = models.User.query.get(user_id)
+
+    login_user(client.user)
+    token = client.user.get_auth_token()
 
     def open_proxy(*args, **kwargs):
         """Proxy client to automatically insert authentication header"""
@@ -170,11 +180,17 @@ def authenticated_client(client, setupdb):  # pylint: disable=redefined-outer-na
 
 
 @pytest.fixture
-def session_client(client, setupdb):  # pylint: disable=redefined-outer-name
+def session_client(request, app, client, setupdb):  # pylint: disable=redefined-outer-name
     """Log in using session-based authentication."""
-    user = models.User.query.get(setupdb.test_user_id)
-    # Users have plaintext passwords in testing
-    login_session(client, user.email, user.password)
+    user_id = None
+    if 'use_alt_user' in request.keywords:
+        print(f'session_client: Using alternate user ID {setupdb.test_alt_user_id}')
+        user_id = setupdb.test_alt_user_id
+    else:
+        print(f'session_client: Using default user ID {setupdb.test_user_id}')
+        user_id = setupdb.test_user_id
+    client.user = models.User.query.get(user_id)
+    _login_session(app, client)
     return client
 
 

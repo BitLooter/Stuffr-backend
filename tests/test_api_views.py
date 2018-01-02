@@ -283,15 +283,11 @@ class TestGetThings(CommonViewTests):
         assert response.status_code == HTTPStatus.NOT_FOUND
         assert response.headers['Content-Type'] == 'application/json'
 
-    def test_wrong_user(self, authenticated_client, setupdb):
+    @pytest.mark.use_alt_user
+    @pytest.mark.usefixtures('setupdb')
+    def test_wrong_user(self, authenticated_client):
         """Test that getting an inventory's things as the wrong user fails."""
-        # Find an inventory that does not belong to the logged-in user
-        for inventory in models.Inventory.query.all():
-            if inventory.user_id != setupdb.test_user_id:
-                unowned_id = inventory.id
-                break
-        url = url_for(self.view_name, inventory_id=unowned_id)
-
+        url = url_for(self.view_name, **self.view_params)
         response = authenticated_client.get(url)
         assert response.status_code == HTTPStatus.FORBIDDEN
 
@@ -387,15 +383,11 @@ class TestPostThing(CommonViewTests, SubmitRequestMixin):
         response = post_as_json(authenticated_client.post, invalid_url, self.new_thing_data)
         assert response.status_code == HTTPStatus.NOT_FOUND
 
+    @pytest.mark.use_alt_user
+    @pytest.mark.usefixtures('setupdb')
     def test_unowned_inventory(self, authenticated_client, setupdb):
         """Test posting to an inventory owned by another user."""
-        # Find an inventory that does not belong to the logged-in user
-        for inventory in models.Inventory.query.all():
-            if inventory.user_id != setupdb.test_user_id:
-                unowned_id = inventory.id
-                break
-        url = url_for(self.view_name, inventory_id=unowned_id)
-
+        url = url_for(self.view_name, **self.view_params)
         response = post_as_json(authenticated_client.post, url, self.new_thing_data)
         assert response.status_code == HTTPStatus.FORBIDDEN
 
@@ -449,15 +441,11 @@ class TestPutThing(CommonViewTests, SubmitRequestMixin):
         # Flask view looks for an int after /things, no view is set up for str
         assert response.status_code == HTTPStatus.METHOD_NOT_ALLOWED
 
+    @pytest.mark.use_alt_user
+    @pytest.mark.usefixtures('setupdb')
     def test_unowned_thing(self, authenticated_client, setupdb):
         """Test updating a thing owned by another user."""
-        # Find an inventory that does not belong to the logged-in user
-        for inventory in models.Inventory.query.all():
-            if inventory.user_id != setupdb.test_user_id:
-                test_thing = inventory.things[0]
-                break
-        url = url_for(self.view_name, thing_id=test_thing.id)
-
+        url = url_for(self.view_name, **self.view_params)
         response = post_as_json(authenticated_client.put, url,
                                 {'name': 'Should be forbidden'})
         assert response.status_code == HTTPStatus.FORBIDDEN
@@ -508,15 +496,11 @@ class TestDeleteThing(CommonViewTests):
         thing_to_delete = models.Thing.query.get(setupdb.test_thing_id)
         assert thing_to_delete.date_deleted is not None
 
+    @pytest.mark.use_alt_user
+    @pytest.mark.usefixtures('setupdb')
     def test_unowned_thing(self, authenticated_client, setupdb):
         """Test deleting a thing owned by another user."""
-        # Find an inventory that does not belong to the logged-in user
-        for inventory in models.Inventory.query.all():
-            if inventory.user_id != setupdb.test_user_id:
-                test_thing = inventory.things[0]
-                break
-        url = url_for(self.view_name, thing_id=test_thing.id)
-
+        url = url_for(self.view_name, **self.view_params)
         response = authenticated_client.delete(url)
         assert response.status_code == HTTPStatus.FORBIDDEN
 

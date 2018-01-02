@@ -4,11 +4,9 @@ from http import HTTPStatus
 import pytest
 from flask import url_for
 
-from stuffrapp.api import models
-from tests.conftest import login_session
-
 
 pytestmark = pytest.mark.simple_views
+
 
 # Views that do not take arguments
 views_generic = [
@@ -49,14 +47,13 @@ def test_all_unauthenticated(setupdb, client, view_name, param_names):
     assert auth_url in response.location
 
 
+@pytest.mark.use_alt_user
 @pytest.mark.parametrize('view_name, param_names', views_parameters)
-def test_incorrect_user_access(setupdb, client, view_name, param_names):
+def test_incorrect_user_access(setupdb, session_client, view_name, param_names):
     """Test views that show specified items restrict access to correct user."""
-    user = models.User.query.get(setupdb.test_alt_user_id)
-    login_session(client, user.email, user.password)
     view_params = {k: getattr(setupdb, v) for k, v in param_names.items()}
     url = url_for(view_name, **view_params)
-    response = client.get(url)
+    response = session_client.get(url)
     assert response.status_code == HTTPStatus.FORBIDDEN
 
 
